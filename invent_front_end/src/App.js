@@ -3,6 +3,7 @@ import Header from './components/header';
 import Sidebar from './components/sidebar';
 import Footer from './components/footer';
 import styles from './components/styles.module.css';
+import Sticker from './components/sticker';
 import React, { use, useEffect, useMemo, useState } from 'react';
 import { useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
@@ -210,6 +211,11 @@ function Dashboard() {
               <div className={styles.cardTitle}>EDIT/VIEW</div>
               <div className={styles.cardDesc}>Edit or delete a record by pass number.</div>
               <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/edit">OPEN</Link>
+            </div>
+            <div className={styles.card}>
+              <div className={styles.cardTitle}>PRINT STICKERS/HANDING OVER FORM</div>
+              <div className={styles.cardDesc}>Print stickers for items or form to handover for testing.</div>
+              <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/print-sticker">OPEN</Link>
             </div>
           </div>
         </div>
@@ -2685,6 +2691,11 @@ function App() {
         } />
         <Route path="/" element={
           <Navigate to="/login" replace />
+        } />
+        <Route path="/print-sticker" element={
+          <ProtectedRoute requiredRole="user">
+            <Sticker />
+          </ProtectedRoute>
         } />
       </Routes>
     </BrowserRouter>
