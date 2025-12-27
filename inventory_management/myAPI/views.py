@@ -715,9 +715,14 @@ def _build_search_query(params):
     value = params.get("value")
     from_date = params.get("from")
     to_date = params.get("to")
+    serialProjectName = params.get("serialProjectName")
     query = {}
     if search_type == "passNo" and value:
         query["passNo"] = value
+    elif search_type == "serialNumber" and value:
+        if serialProjectName:
+            query["projectName"] = {"$regex": serialProjectName, "$options": "i"}    
+        query["items.serialNumber"] = {"$regex": value.upper(), "$options": "i"}
     elif search_type == "ItemPartNo" and value:
         query["items.partNumber"] = value
     elif search_type == "ProjectName" and value:
@@ -730,6 +735,31 @@ def _build_search_query(params):
     print(query)
     return query
 
+def _filter_serial(items, serial_substring=None, status=None):
+    """Filter items by serial number substring (case-insensitive) and status."""
+    if not serial_substring:
+        return items
+
+    serial_substring = serial_substring.upper()
+    filtered = []
+
+    for item in items:
+        serial = item.get("serialNumber", "")
+
+        # 🔹 Serial number substring match
+        if not (serial and serial_substring in serial.upper()):
+            continue
+
+        # 🔹 Status filter (optional)
+        if status == "In" and not (item.get("itemIn") and not item.get("itemOut")):
+            continue
+
+        if status == "Out" and not (item.get("itemIn") and item.get("itemOut")):
+            continue
+
+        filtered.append(item)
+
+    return filtered
 
 def _filter_items(items, part_number=None, status=None):
     """Filter items by part number and/or status (In/Out)."""
@@ -791,7 +821,9 @@ def search(request):
         for doc in docs:
             filtered_items = doc.get("items", [])
 
-            if search_type == "ItemPartNo" and search_value:
+            if search_type == "serialNumber" and search_value:
+                filtered_items = _filter_serial(filtered_items, serial_substring=search_value, status=status)
+            elif search_type == "ItemPartNo" and search_value:
                 filtered_items = _filter_items(filtered_items, part_number=search_value, status=status)
             elif status in ("In", "Out"):
                 filtered_items = _filter_items(filtered_items, status=status)
@@ -855,7 +887,9 @@ def search_download(request):
             search_type = params.get("type")
             status = params.get("status")
             search_value = params.get("value")
-            if search_type == "ItemPartNo" and search_value:
+            if search_type == "serialNumber" and search_value:
+                items = _filter_serial(items, serial_substring=search_value, status=status)
+            elif search_type == "ItemPartNo" and search_value:
                 items = _filter_items(items, part_number = search_value, status=status)
             elif status in ("In", "Out"):
                 items = _filter_items(items, status=status)

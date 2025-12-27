@@ -7,6 +7,7 @@ import Sticker from './components/sticker';
 import React, { use, useEffect, useMemo, useState } from 'react';
 import { useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
+// import formElements from './components/FormElements';
 
 function apiBase() {
   return 'http://localhost:8000/api';
@@ -689,7 +690,7 @@ const fetchPartNoOptions = async (idx, equipmentType, itemName) => {
                           {it.partNoOptions.map((no, i) => <option key={i} value={no}>{no}</option>)}
                         </select>
                       </td>
-                      <td><input className={styles.control} value={it.serialNumber} onChange={(e) => updateItem(idx, 'serialNumber', e.target.value)} required /></td>
+                      <td><input className={styles.control} value={(it.serialNumber).toUpperCase()} onChange={(e) => updateItem(idx, 'serialNumber', e.target.value)} required /></td>
                       <td>
                         <textarea
                           className={styles.control}
@@ -1516,6 +1517,8 @@ function SearchPage() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [projectOptions, setProjectOptions] = useState([]);
   const suggestionRef = useRef(null);
+  const [projectValue, setProjectValue] = useState('');
+  // const {MultiSelectAutocomplete} = formElements;
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -1573,6 +1576,7 @@ function SearchPage() {
     setFStatus('All');
     setSuggestions([]);
     setShowSuggestions(false);
+    setProjectValue('');
   };
 
   const clearOnChange = () =>{
@@ -1580,6 +1584,7 @@ function SearchPage() {
     setFrom('');
     setTo('');
     setFStatus('All');
+    setProjectValue('');
   }
 
   const runSearch = async () => {
@@ -1595,6 +1600,11 @@ function SearchPage() {
         setStatus('Please enter a date range');
         return;
       }
+      if (type === 'serialNumber' && value.length < 3) {
+        setStatus('Please enter at least 3 characters for Serial Number search');
+        return;
+      }
+      if (type === 'serialNumber') params.set('serialProjectName', projectValue);
       if (type !== 'DateRange' && value) params.set('value', value);
       if (from) params.set('from', from);
       if (to) params.set('to', to);
@@ -1620,6 +1630,11 @@ function SearchPage() {
         setStatus('Please enter a date range');
         return;
       }
+      if (type === 'serialNumber' && value.length < 3) {
+        setStatus('Please enter at least 3 characters for Serial Number search');
+        return;
+      }
+      if (type === 'serialNumber') params.set('serialProjectName', projectValue);
       if (type !== 'DateRange' && value) params.set('value', value);
       if (from) params.set('from', from);
       if (to) params.set('to', to);
@@ -1757,12 +1772,13 @@ function SearchPage() {
               <option value="ItemPartNo">PART NO</option>
               <option value="ProjectName">PROJECT NAME</option>
               <option value="DateRange">DATE RANGE</option>
+              <option value="serialNumber">SERIAL NUMBER</option>
             </select>
           </label>
           {type === 'DateRange' ? null : (
 
             <label className={styles.label}>
-              {type === 'passNo' ? 'PRIVATE PASS NO' : type === 'ItemPartNo' ? 'PART NO' : 'PROJECT NAME'}
+              {type === 'passNo' ? 'PRIVATE PASS NO' : type === 'ItemPartNo' ? 'PART NO' : type === 'serialNumber' ? 'SERIAL NUMBER' : 'PROJECT NAME'}
               {type === 'ProjectName' ?
                 <select 
                   className={styles.control} 
@@ -1804,7 +1820,23 @@ function SearchPage() {
               <option value = "Out">OUT</option>
             </select>
           </label>
-          {type != 'passNo' && (
+          {type === 'serialNumber' && (
+            <label className={styles.label}>PROJECT NAME
+              <select
+                className={styles.control}
+                value={projectValue}
+                onChange={(e) => setProjectValue(e.target.value)}
+                onFocus={fetchProjects}
+                required
+              >
+                <option value="">SELECT PROJECT</option>
+                {projectOptions.map((p, idx) => (
+                  <option key={idx} value={p}>{p}</option>
+                ))}
+              </select>
+            </label>
+          )}
+          {type != 'passNo' && type != 'serialNumber' && (
             <div className={styles.formGrid2}>
               <label className={styles.label}>From<input className={styles.control} type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
               <label className={styles.label}>To<input className={styles.control} type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
@@ -2377,7 +2409,7 @@ function EditPage() {
                           {it.partNoOptions?.map((p, i) => <option key={i} value={p}>{p}</option>)}
                         </select>
                       </td>
-                      <td><input className={styles.control} value={it.serialNumber || ''} onChange={(e) => updateItem(idx, 'serialNumber', e.target.value)} readOnly={!isEditing} required /></td>
+                      <td><input className={styles.control} value={(it.serialNumber || '').toUpperCase()} onChange={(e) => updateItem(idx, 'serialNumber', e.target.value)} readOnly={!isEditing} required /></td>
                       <td><input className={styles.control} value={it.defectDetails || ''} onChange={(e) => updateItem(idx, 'defectDetails', e.target.value)} readOnly={!isEditing} /></td>
                       <td style={{ textAlign: 'center' }}><input type="checkbox" checked={!!it.itemOut} onChange={(e) => updateItem(idx, 'itemOut', e.target.checked)} disabled={!isEditing} /></td>
                       <td>
