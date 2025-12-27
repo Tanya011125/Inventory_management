@@ -5,7 +5,12 @@ import Footer from './components/footer';
 import styles from './components/styles.module.css';
 import React, { use, useEffect, useMemo, useState } from 'react';
 import { useRef } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
+import UserDashboardChoice from './DashboardChoice';          
+import SparesManagement from './SparesManagement';  
+import DashboardChoice from './DashboardChoice';
+import { SparesMasterListPage, SparesInPage, SparesOutPage, ViewItemPage, StockCheckPage } from './SparesManagement';
+import { Outlet } from "react-router-dom";
 
 function apiBase() {
   return 'http://localhost:8000/api';
@@ -96,7 +101,7 @@ function LoginPage({ onLoggedIn }) {
       if (data.role === 'admin') {
         navigate('/admin/admin-dashboard', { replace: true });
       } else {
-        navigate('/dashboard', { replace: true });
+        navigate('/choice', { replace: true });
       }
     } catch (err) {
       setError(err.message);
@@ -180,6 +185,8 @@ function AdminDashboard() {
 }
 
 function Dashboard() {
+  const navigate = useNavigate();
+
   return (
     <div className={styles.inventoryLayout}>
       <Sidebar />
@@ -188,7 +195,7 @@ function Dashboard() {
         <div className={styles.page}>
           <div className={styles.pageHeader}>
             <div className={styles.pageTitle}>DASHBOARD</div>
-            <span className={styles.pill}>USER</span>
+            <button className={`${styles.btn} ${styles.btnGhost}`} onClick={() => {navigate('/choice');}}>CLOSE</button>
           </div>
           <div className={styles.cardGrid}>
             <div className={styles.card}>
@@ -604,7 +611,7 @@ const fetchPartNoOptions = async (idx, equipmentType, itemName) => {
       <div className={styles.pageHeader}>
         <div className={styles.pageTitle}>ITEM IN</div>
         <div className={styles.pageActions}>
-          <button className={`${styles.btn} ${styles.btnGhost}`} onClick={() => {navigate('/dashboard'); clearForm()}}>CLOSE</button>
+          <button className={`${styles.btn} ${styles.btnGhost}`} onClick={() => {navigate('/user/dashboard'); clearForm()}}>CLOSE</button>
         </div>
       </div>
       <div className={styles.card}>
@@ -927,7 +934,7 @@ function ItemOutPage() {
       <div className={styles.pageHeader}>
         <div className={styles.pageTitle}>ITEM OUT</div>
         <div className={styles.pageActions}>
-          <button className={`${styles.btn} ${styles.btnGhost}`} onClick={() => {navigate('/dashboard'); clearForm()}}>CLOSE</button>
+          <button className={`${styles.btn} ${styles.btnGhost}`} onClick={() => {navigate('/user/dashboard'); clearForm()}}>CLOSE</button>
         </div>
       </div>
       <div className={styles.card}>
@@ -1736,7 +1743,7 @@ function SearchPage() {
       <div className={styles.pageHeader}>
         <div className={styles.pageTitle}>REPORT</div>
         <div className={styles.pageActions}>
-          <button className={`${styles.btn} ${styles.btnGhost}`} onClick={() => {navigate('/dashboard'); clearForm()}}>CLOSE</button>
+          <button className={`${styles.btn} ${styles.btnGhost}`} onClick={() => {navigate('/user/dashboard'); clearForm()}}>CLOSE</button>
         </div>
       </div>
       <div className={styles.card}>
@@ -2251,7 +2258,7 @@ function EditPage() {
       <div className={styles.pageHeader}>
         <div className={styles.pageTitle}>EDIT/VIEW</div>
         <div className={styles.pageActions}>
-          <button className={`${styles.btn} ${styles.btnGhost}`} onClick={() => {navigate('/dashboard'); clearForm()}}>CLOSE</button>
+          <button className={`${styles.btn} ${styles.btnGhost}`} onClick={() => {navigate('/user/dashboard'); clearForm()}}>CLOSE</button>
         </div>
       </div>
       <div className={styles.card}>
@@ -2638,8 +2645,17 @@ function App() {
   }
 
   return (
-    <BrowserRouter>
-      <Routes>
+    <Routes>
+        <Route path="/choice" element={
+          <ProtectedRoute requiredRole="user">
+            <DashboardChoice />
+          </ProtectedRoute>
+        } />
+        <Route path="/user/spares" element={
+          <ProtectedRoute requiredRole="user">
+            <SparesManagement />
+          </ProtectedRoute>
+        } />
         <Route path="/login" element={
           <LoginPage onLoggedIn={() => setAuthTick((t) => t + 1)} />
         } />
@@ -2658,7 +2674,7 @@ function App() {
             <AdminDashboard />
           </ProtectedRoute>
         } />
-        <Route path="/dashboard" element={
+        <Route path="/user/dashboard" element={
           <ProtectedRoute requiredRole="user">
             <Dashboard />
           </ProtectedRoute>
@@ -2686,8 +2702,32 @@ function App() {
         <Route path="/" element={
           <Navigate to="/login" replace />
         } />
-      </Routes>
-    </BrowserRouter>
+        <Route path="/spares/spares-master-list" element={
+          <ProtectedRoute requiredRole="user">
+            <SparesMasterListPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/spares/spares-in" element={
+          <ProtectedRoute requiredRole="user">
+            <SparesInPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/spares/spares-out" element={
+          <ProtectedRoute requiredRole="user">
+            <SparesOutPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/spares/view-item" element={
+          <ProtectedRoute requiredRole="user">
+            <ViewItemPage />
+          </ProtectedRoute>
+        } />
+        <Route path="/spares/stock-check" element={
+          <ProtectedRoute requiredRole="user">
+            <StockCheckPage />
+          </ProtectedRoute>
+        } />
+    </Routes>
   );
 }
 

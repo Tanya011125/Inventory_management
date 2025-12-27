@@ -3,20 +3,25 @@ from django.views.decorators.csrf import csrf_exempt
 import json
 from pymongo import MongoClient
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import secrets
 import hashlib
 import csv
 from io import StringIO
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
-
-client = MongoClient("mongodb://inventory_admin:BEL%402479@localhost:27017/")
+client = MongoClient("mongodb://localhost:27017/")
 db = client["inventory_db"]  # Use your DB name
 collection = db["product_details"]
 log_collection = db["api_logs"]
 users_collection = db["users"]
 sessions_collection = db["sessions"]
+spares_master = db["spares_master"]   # master list
+spares_in_col = db["spares_in"]       # logs table
+spares_out_col = db["spares_out"]  # logs table
+spares_audit = db["spares_audit"]
 
 # Admin Projects collection
 admin_projects_collection = db["admin_projects"]
@@ -974,3 +979,304 @@ def search_suggestions(request):
         error_response = {"error": str(e)}
         log_api_response("search_suggestions", request.method, dict(request.GET), {**error_response, "stack_trace": stack_trace})
         return JsonResponse(error_response, status=500)
+
+@csrf_exempt
+def spares_master_add(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "Only POST allowed"}, status=405)
+
+    user, err = require_auth(request)
+    if err:
+        return err
+
+    try:
+        body = json.loads(request.body or "{}")
+
+        part_no = body.get("part_no", "").strip()
+        item_name = body.get("item_name", "").strip()
+        bin_no = body.get("bin_no", "").strip()
+        rack_no = body.get("rack_no", "").strip()
+
+        # Required fields
+        if not part_no or not item_name:
+            return JsonResponse({"error": "part_no and item_name are required"}, status=400)
+
+        # Connect to MongoDB
+        spares_coll = db["spares_master"]
+
+        # Check duplicate part no
+        if spares_coll.find_one({"part_no": part_no}):
+            return JsonResponse({"error": "Part number already exists"}, status=409)
+
+        # Insert into DB
+        spares_coll.insert_one({
+            "part_no": part_no,
+            "item_name": item_name,
+            "bin_no": bin_no,
+            "rack_no": rack_no,
+            "created_by": user.get("username"),
+            "created_at": datetime.now(ZoneInfo("Asia/Kolkata"))
+        })
+
+        return JsonResponse({"message": "Item added", "part_no": part_no}, status=201)
+
+    except Exception as e:
+        stack = traceback.format_exc()
+        return JsonResponse({"error": str(e), "stack_trace": stack}, status=500)
+
+@csrf_exempt
+def spares_master_list(request):
+    if request.method == "GET":
+        try:
+            part_no = request.GET.get("part_no")
+
+            # If part_no is passed → return the single item's details
+            if part_no:
+                item = spares_master.find_one({"part_no": part_no}, {"_id": 0})
+                if not item:
+                    return JsonResponse({"error": "Item not found"}, status=404)
+                return JsonResponse(item)
+
+            # Otherwise → return full list
+            items = list(spares_master.find({}, {"_id": 0}))
+            return JsonResponse({"items": items})
+
+        except Exception as e:
+            print(traceback.format_exc())
+            return JsonResponse({"error": str(e)}, status=500)
+
+    return JsonResponse({"error": "Method Not Allowed"}, status=405)
+
+@csrf_exempt
+def spares_in(request):
+    user = get_user_from_token(request)
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body.decode("utf-8"))
+            part_no = data.get("part_no")
+            qty_in = int(data.get("qty_in", 0))
+
+            if not part_no or qty_in <= 0:
+                return JsonResponse({"error": "Invalid data"}, status=400)
+
+            # Find item in master list
+            item = spares_master.find_one({"part_no": part_no})
+
+            if not item:
+                return JsonResponse({"error": "Item not found"}, status=404)
+
+            # Current qty
+            current_qty = int(item.get("qty", 0))
+
+            # Date tracking
+            entry_date = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%Y-%m-%d %H:%M:%S")
+
+
+            # New quantity = old + incoming qty
+            new_qty = current_qty + qty_in
+
+            # Update master list
+            spares_master.update_one(
+                {"part_no": part_no},
+                {
+                    "$set": {"qty": new_qty},
+                    "$push": {
+                        "history": {
+                            "type": "IN",
+                            "qty": qty_in,
+                            "date": entry_date
+                        }
+                    }
+                }
+            )
+
+            # Log entry 
+            spares_in_col.insert_one({
+                "part_no": part_no,
+                "qty_in": qty_in,
+                "previous_qty": current_qty,
+                "new_qty": new_qty,
+                "date": entry_date
+            })
+
+            spares_audit.insert_one({
+                "part_no": part_no,
+                "date": datetime.now(tz=ZoneInfo("Asia/Kolkata")),
+                "in": qty_in,
+                "out": 0,
+                "qty_after": new_qty,
+                "user": user,
+            })
+
+            return JsonResponse({"status": "success", "new_qty": new_qty})
+
+        except Exception as e:
+            print(traceback.format_exc())
+            return JsonResponse({"error": str(e)}, status=500)
+
+    return JsonResponse({"error": "Method Not Allowed"}, status=405)
+
+@csrf_exempt
+def spares_out(request):
+    user = get_user_from_token(request)
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body.decode("utf-8"))
+            part_no = data.get("part_no")
+            qty_out = int(data.get("qty_out", 0))
+            handing_over_to = data.get("handing_over_to")
+
+            if not part_no or qty_out <= 0 or not handing_over_to:
+                return JsonResponse({"error": "Invalid input"}, status=400)
+
+            # Find item
+            item = spares_master.find_one({"part_no": part_no})
+            if not item:
+                return JsonResponse({"error": "Item not found"}, status=404)
+
+            current_qty = int(item.get("qty", 0))
+
+            # Validate stock availability
+            if qty_out > current_qty:
+                return JsonResponse({"error": "Not enough stock"}, status=400)
+
+            new_qty = current_qty - qty_out
+
+            # Date
+            from datetime import datetime
+            from zoneinfo import ZoneInfo
+            entry_date = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%Y-%m-%d %H:%M:%S")
+
+            # Update master list
+            spares_master.update_one(
+                {"part_no": part_no},
+                {
+                    "$set": {"qty": new_qty},
+                    "$push": {
+                        "history": {
+                            "type": "OUT",
+                            "qty": qty_out,
+                            "handed_to": handing_over_to,
+                            "date": entry_date
+                        }
+                    }
+                }
+            )
+
+            # Log outgoing
+            spares_out_col.insert_one({
+                "part_no": part_no,
+                "qty_out": qty_out,
+                "handing_over_to": handing_over_to,
+                "previous_qty": current_qty,
+                "new_qty": new_qty,
+                "date": entry_date
+            })
+
+            spares_audit.insert_one({
+                "part_no": part_no,
+                "date": datetime.now(tz=ZoneInfo("Asia/Kolkata")),
+                "in": 0,
+                "out": qty_out,
+                "qty_after": new_qty,
+                "user": user,
+            })
+
+            return JsonResponse({"status": "success", "new_qty": new_qty})
+
+        except Exception as e:
+            print(traceback.format_exc())
+            return JsonResponse({"error": str(e)}, status=500)
+
+    return JsonResponse({"error": "Method Not Allowed"}, status=405)
+
+@csrf_exempt
+def spares_audit_view(request):
+    if request.method == "GET":
+        try:
+            part_no = request.GET.get("part_no")
+
+            audit_items = list(
+                spares_audit.find({"part_no": part_no}, {"_id": 0}).sort("date", 1)
+            )
+
+            return JsonResponse({"audit": audit_items})
+
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+    return JsonResponse({"error": "Method Not Allowed"}, status=405)
+
+@csrf_exempt
+def spares_audit_filter(request):
+    if request.method == "GET":
+        try:
+            part_no = request.GET.get("part_no")
+            start_date = request.GET.get("start_date")
+            end_date = request.GET.get("end_date")
+
+            query = {"part_no": part_no}
+
+            # If date filter applied
+            if start_date and end_date:
+                try:
+                    start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+
+                    # end date should include entire day (23:59:59)
+                    end_dt = datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)
+
+                    query["date"] = {
+                        "$gte": start_dt,
+                        "$lt": end_dt
+                    }
+
+                except Exception:
+                    print("Date parsing error:", traceback.format_exc())
+                    return JsonResponse({"error": "Invalid date format"}, status=400)
+
+            audit_items = list(
+                spares_audit.find(query, {"_id": 0}).sort("date", 1)
+            )
+
+            return JsonResponse({"audit": audit_items})
+
+        except Exception as e:
+            print("Error:", traceback.format_exc())
+            return JsonResponse({"error": str(e)}, status=500)
+
+    return JsonResponse({"error": "Method Not Allowed"}, status=405)
+
+@csrf_exempt
+def stock_check(request):
+    if request.method == "GET":
+        try:
+            # Fetch stock same way as stock check
+            items = list(spares_master.find({}, {"_id": 0}))
+
+            # Build CSV
+            import csv
+            from io import StringIO
+
+            output = StringIO()
+            writer = csv.writer(output)
+
+            # Header
+            writer.writerow(["Sl No", "Item Name", "Part No", "Qty"])
+
+            # Rows
+            for idx, item in enumerate(items):
+                writer.writerow([
+                    idx + 1,
+                    item.get("item_name", ""),
+                    item.get("part_no", ""),
+                    item.get("qty", 0)
+                ])
+
+            response = HttpResponse(output.getvalue(), content_type="text/csv")
+            response["Content-Disposition"] = "attachment; filename=stock_report.csv"
+            return response
+
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+    return JsonResponse({"error": "Method Not Allowed"}, status=405)

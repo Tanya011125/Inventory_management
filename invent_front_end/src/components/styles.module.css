@@ -13,7 +13,7 @@
 }
 
 :global(body) {
-  overflow-x: hidden;
+  overflow-x: visible;
   background: #f8fafc;
 }
 /* Use this wrapper around input + suggestionsList for correct dropdown positioning */
@@ -106,6 +106,15 @@
   top: 100%;
   right: 0;
   background-color: white;
+  border: 1px solid #e1e5e9;
+  border-radius: 8px;
+  padding: 16px;
+  z-index: 1000;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  min-width: 180px;
+  animation: fadeIn 0.2s ease;
+  color: #222;
+}
 
 .manageProjectsContainer {
   padding: 32px;
@@ -140,15 +149,6 @@
 .projectButton:hover {
   background: linear-gradient(90deg, #1e40af 0%, #2563eb 100%);
   transform: translateY(-2px) scale(1.04);
-}
-  border: 1px solid #e1e5e9;
-  border-radius: 8px;
-  padding: 16px;
-  z-index: 1000;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  min-width: 180px;
-  animation: fadeIn 0.2s ease;
-  color: #222;
 }
 
 @keyframes fadeIn {
@@ -246,7 +246,7 @@
 .inventoryLayout {
   display: flex;
   height: 100vh;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .sidebar {
@@ -575,7 +575,7 @@
 
 .btn { 
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  border: 1px solid transparent; border-radius: 8px; cursor: pointer;
+  border: 1px solid transparent; border-radius: 8px; cursor: pointer; 
   padding: 8px 14px; font-weight: 600; font-size: .95rem; transition: all .2s ease;
 }
 .btnPrimary { background: linear-gradient(135deg, #0f6eb1 0%, #2196f3 100%); color: #fff; }
@@ -598,7 +598,7 @@
 .control:focus { border-color: #0f6eb1; box-shadow: 0 0 0 3px rgba(15,110,177,.2); }
 .control[disabled] { background: #f1f5f9; color: #888; cursor: not-allowed; }
 
-.tableWrap { background: #fff; border-radius: 12px; box-shadow: 0 6px 24px rgba(15, 110, 177, 0.12); overflow: hidden; }
+.tableWrap { background: #fff; border-radius: 12px; box-shadow: 0 6px 24px rgba(15, 110, 177, 0.12); overflow: visible; }
 .table { width: 100%; border-collapse: collapse; font-size: .95rem; }
 .table thead th {
   background: #f6f8fa;
@@ -642,4 +642,11 @@
   /* Box sizing consistency */
   padding: 6px 8px;   /* same as input */
   box-sizing: border-box;
+}
+.table-scroll {
+    max-height: 400px;   
+    overflow-y: scroll;      
+    overflow-x: auto;
+    border: 1px solid #ccc;
+    padding: 5px;
 }
