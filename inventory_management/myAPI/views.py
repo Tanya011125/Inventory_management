@@ -8,6 +8,11 @@ from zoneinfo import ZoneInfo
 import secrets
 import hashlib
 import csv
+from io import StringIO,BytesIO
+from openpyxl import load_workbook, Workbook
+from openpyxl.styles import Alignment, Font, Border, Side
+from openpyxl.utils import get_column_letter
+import os
 from io import StringIO
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -716,9 +721,14 @@ def _build_search_query(params):
     value = params.get("value")
     from_date = params.get("from")
     to_date = params.get("to")
+    serialProjectName = params.get("serialProjectName")
     query = {}
     if search_type == "passNo" and value:
         query["passNo"] = value
+    elif search_type == "serialNumber" and value:
+        if serialProjectName:
+            query["projectName"] = {"$regex": serialProjectName, "$options": "i"}    
+        query["items.serialNumber"] = {"$regex": value.upper(), "$options": "i"}
     elif search_type == "ItemPartNo" and value:
         query["items.partNumber"] = value
     elif search_type == "ProjectName" and value:
@@ -728,8 +738,34 @@ def _build_search_query(params):
     date_cond = _build_date_filter(from_date, to_date)
     if date_cond:
         query["dateIn"] = date_cond
+    print(query)
     return query
 
+def _filter_serial(items, serial_substring=None, status=None):
+    """Filter items by serial number substring (case-insensitive) and status."""
+    if not serial_substring:
+        return items
+
+    serial_substring = serial_substring.upper()
+    filtered = []
+
+    for item in items:
+        serial = item.get("serialNumber", "")
+
+        # 🔹 Serial number substring match
+        if not (serial and serial_substring in serial.upper()):
+            continue
+
+        # 🔹 Status filter (optional)
+        if status == "In" and not (item.get("itemIn") and not item.get("itemOut")):
+            continue
+
+        if status == "Out" and not (item.get("itemIn") and item.get("itemOut")):
+            continue
+
+        filtered.append(item)
+
+    return filtered
 
 def _filter_items(items, part_number=None, status=None):
     """Filter items by part number and/or status (In/Out)."""
@@ -791,7 +827,9 @@ def search(request):
         for doc in docs:
             filtered_items = doc.get("items", [])
 
-            if search_type == "ItemPartNo" and search_value:
+            if search_type == "serialNumber" and search_value:
+                filtered_items = _filter_serial(filtered_items, serial_substring=search_value, status=status)
+            elif search_type == "ItemPartNo" and search_value:
                 filtered_items = _filter_items(filtered_items, part_number=search_value, status=status)
             elif status in ("In", "Out"):
                 filtered_items = _filter_items(filtered_items, status=status)
@@ -855,7 +893,9 @@ def search_download(request):
             search_type = params.get("type")
             status = params.get("status")
             search_value = params.get("value")
-            if search_type == "ItemPartNo" and search_value:
+            if search_type == "serialNumber" and search_value:
+                items = _filter_serial(items, serial_substring=search_value, status=status)
+            elif search_type == "ItemPartNo" and search_value:
                 items = _filter_items(items, part_number = search_value, status=status)
             elif status in ("In", "Out"):
                 items = _filter_items(items, status=status)
@@ -924,6 +964,254 @@ def search_download(request):
         error_response = {"error": str(e)}
         log_api_response("search_download", request.method, dict(request.GET), {**error_response, "stack_trace": stack_trace})
         return JsonResponse(error_response, status=500)
+
+@csrf_exempt
+def search_download_sticker(request):
+    if request.method != "GET":
+        error_response = {"error": "Only GET allowed"}
+        log_api_response("search_download_sticker", request.method, dict(request.GET), error_response)
+        return JsonResponse(error_response, status=405)
+
+    user, err = require_auth(request)
+    if err:
+        return err
+    
+    try:
+        BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        master_file = os.path.join(BASE_DIR, "static", "templates", "Print_Pass_Master_Excel.xlsx")
+        wb = load_workbook(master_file)
+        ws = wb.active
+        params = request.GET
+        poffset = int(params.get("offset","0"))
+        query = _build_search_query(params)
+        docs = list(collection.find(query))
+        for doc in docs:
+            passNo = doc.get("passNo","")
+            dateIn = doc.get("dateIn","")
+            items = doc.get("items", [])
+            projectName = doc.get("projectName","")
+            unitAddress = doc.get("customer",{}).get("unitAddress","")
+            for j, item in enumerate(items):
+                start_slNo = j+1
+                itemName = item.get("itemName", "")
+                serialNumber = item.get("serialNumber", "")
+                j += poffset-1
+                # Choose left or right block based on index
+                if j % 2 == 0:
+                    col_A, col_B, col_C = "A", "B", "C"
+                else:
+                    col_A, col_B, col_C = "D", "E", "F"
+
+                start_row = (j // 2) * 7 + 1  # ensures each block gets 7 rows
+                if start_row in (57,112):
+                    start_row = (j//2) * 7
+                    print(start_row)
+
+                labels = ["Pass No", "Date", "Unit Address", "Project Name", "Item Name", "Sl.No"]
+                values = [passNo, dateIn, unitAddress, projectName, itemName, serialNumber]
+
+                # write serial number in first column
+                ws[f"{col_A}{start_row}"] = start_slNo
+
+                # write labels and values
+                for offset, (label, value) in enumerate(zip(labels, values)):
+                    ws[f"{col_B}{start_row + offset}"] = label
+                    ws[f"{col_C}{start_row + offset}"] = value
+
+                # empty row separator
+                empty_row = start_row + len(labels)
+                if empty_row != 56:
+                    ws[f"{col_B}{empty_row}"] = ""
+
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        default_filename = f"{datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%Y-%m-%d')}_sticker_export.xlsx"
+        response = HttpResponse(output.getvalue(), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        response['Content-Disposition'] = f'attachment; filename="{default_filename}"'
+        log_api_response("search_download_sticker", request.method, dict(params), {"rows": len(docs)})
+        return response
+    except Exception as e:
+        stack_trace = traceback.format_exc()
+        error_response = {"error": str(e)}
+        log_api_response("search_download_sticker", request.method, dict(request.GET), {**error_response, "stack_trace": stack_trace})
+        return JsonResponse(error_response, status=500)
+
+@csrf_exempt
+def search_download_form(request):
+    if request.method != "GET":
+        return JsonResponse({"error": "Only GET allowed"}, status=405)
+
+    user, err = require_auth(request)
+    if err:
+        return err
+
+    try:
+        # --- Extract part numbers from query params ---
+        part_numbers_str = request.GET.get("PartNumbers", "")
+        allowed_part_numbers = set(p.strip() for p in part_numbers_str.split(",") if p.strip())
+
+        query = _build_search_query(request.GET)
+        docs = list(collection.find(query))
+        if not docs:
+            return JsonResponse({"error": "No documents found"}, status=404)
+
+        # ---------- EXCEL SETUP ----------
+        wb = Workbook()
+        if "Sheet" in wb.sheetnames:
+            std = wb["Sheet"]
+            wb.remove(std)
+
+        # page_number = 1
+        # first_doc = docs[0] if docs else {}
+        # ws = create_page(wb, page_number, first_doc)
+        
+        thin_border = Border(
+            left=Side(style='thin'), right=Side(style='thin'),
+            top=Side(style='thin'), bottom=Side(style='thin')
+        )
+        MAX_ITEMS_PER_PAGE = 10  # Items per page
+
+        # Helper functions
+        def style_cell(cell, bold=False, size=10, align="left", wrap=False):
+            cell.font = Font(bold=bold, size=size)
+            cell.alignment = Alignment(horizontal=align, vertical="center", wrap_text=wrap)
+
+        label_rows = {
+            3: [("PASS NO:", "A", "B"), ("DATE:", "E", "E")],
+            4: [("PASS DATE:", "A", "B"), ("CUSTOMER NAME:", "E", "E")],
+            5: [("PROJECT NAME:", "A", "B"), ("CUSTOMER CONTACT NO:", "E", "E")],
+            6: [("UNIT ADDRESS:", "A", "B"), ("CUSTOMER LOCATION:", "E", "E")]
+        }
+
+        headers = ["SL. NO", "PART NO", "ITEM NAME", "ITEM S1.N",
+                   "DEFECT DETAILS", "RECTIFICATION DETAILS", "REMARKS"]
+
+        column_widths = {'A': 5, 'B': 20, 'C': 25, 'D': 15, 'E': 20, 'F': 40, 'G': 10}
+
+        # ---------- FUNCTIONS ----------
+        def create_page(wb, page_number, doc):
+            ws = wb.create_sheet(title=f"Customer Support MILCOM - Page {page_number}")
+            for col, width in column_widths.items():
+                ws.column_dimensions[col].width = width
+            for i in range(3, 7):
+                ws.row_dimensions[i].height = 10
+            ws.row_dimensions[7].height = 5
+
+            # Titles
+            ws.merge_cells('A1:G1')
+            ws['A1'] = "CUSTOMER SUPPORT MILCOM"
+            style_cell(ws['A1'], bold=True, size=16, align="center")
+
+            ws.merge_cells('A2:G2')
+            ws['A2'] = "Customer Complaint History Card"
+            style_cell(ws['A2'], bold=True, size=12, align="center")
+
+            # Header Labels
+            cust = doc.get("customer", {})
+            header_values = {
+                'C3:D3': doc.get("passNo", ""),
+                'F3:G3': datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%d-%m-%Y"),
+                'C4:D4': doc.get("dateIn", ""),
+                'F4:G4': cust.get("name", ""),
+                'C5:D5': doc.get("projectName", ""),
+                'F5:G5': cust.get("phone", ""),
+                'C6:D6': cust.get("unitAddress", ""),
+                'F6:G6': cust.get("location", "")
+            }
+
+            for row, pairs in label_rows.items():
+                for label, start_col, end_col in pairs:
+                    if start_col != end_col:
+                        ws.merge_cells(f"{start_col}{row}:{end_col}{row}")
+                    c = ws[f"{start_col}{row}"]
+                    c.value = label
+                    style_cell(c, bold=True, size=8, align="left")
+
+            for cells, value in header_values.items():
+                ws.merge_cells(cells)
+                c = ws[cells.split(":")[0]]
+                c.value = value
+                style_cell(c, align="left")
+
+            # Table header
+            for col, h in enumerate(headers, start=1):
+                c = ws.cell(row=8, column=col, value=h)
+                style_cell(c, bold=True, size=9, align="center", wrap=True)
+                c.border = thin_border
+
+            # --- Set minimum row height for item rows ---
+            for r in range(9, 19):
+                ws.row_dimensions[r].height = 32
+
+            return ws
+
+        def create_footer(ws, start_row=19, end_row=23):
+            footers = ["HANDED OVER BY (CS-Rep)", "RECEIVED BY (TS-Rep)", "RECEIVED BACK BY AFTER REPAIR (CS-Rep)"]
+            ws.merge_cells(f'A{start_row}:B{start_row}')
+            ws.merge_cells(f'C{start_row}:D{start_row}')
+            ws.merge_cells(f'E{start_row}:G{start_row}')
+            ws['A19'], ws['C19'], ws['E19'] = footers
+            for cell in ['A19', 'C19', 'E19']:
+                style_cell(ws[cell], bold=True)
+                ws[cell].alignment = Alignment(horizontal="center", vertical="center")
+
+            for row in range(start_row + 1, end_row + 1):
+                for col in range(1, 8):
+                    c = ws.cell(row=row, column=col)
+                    c.border = thin_border
+                    c.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+
+            ws.merge_cells(f'A{start_row+1}:B{end_row}')
+            ws.merge_cells(f'C{start_row+1}:D{end_row}')
+            ws.merge_cells(f'E{start_row+1}:G{end_row}')
+
+        # ---------- POPULATE ----------
+        serial_number = 1
+        current_row = 9
+        page_number = 1
+        first_doc = docs[0] if docs else {}
+        ws = create_page(wb, page_number, first_doc)
+
+        for doc in docs:
+            items = [i for i in doc.get("items", []) if str(i.get("partNumber", "")).strip() in allowed_part_numbers]
+            for item in items:
+                if (current_row - 9) % MAX_ITEMS_PER_PAGE == 0 and current_row != 9:
+                    create_footer(ws)
+                    page_number += 1
+                    ws = create_page(wb, page_number, doc)
+                    current_row = 9
+
+                row_values = [
+                    serial_number, item.get("partNumber", ""), item.get("itemName", ""),
+                    item.get("serialNumber", ""), item.get("defectDetails", ""),
+                    "", ""
+                ]
+                for col, val in enumerate(row_values, start=1):
+                    c = ws.cell(row=current_row, column=col, value=val)
+                    c.border = thin_border
+                    align = "center" if col == 1 else "left"
+                    c.alignment = Alignment(horizontal=align, vertical="top", wrap_text=True)
+                serial_number += 1
+                current_row += 1
+            if ws:
+                create_footer(ws)
+
+        # ---------- RESPONSE ----------
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        response = HttpResponse(
+            output.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        response['Content-Disposition'] = 'attachment; filename="Customer_Complaint_History_Card.xlsx"'
+        return response
+
+    except Exception as e:
+        stack_trace = traceback.format_exc()
+        return JsonResponse({"error": str(e), "stack": stack_trace}, status=500)
     
 @csrf_exempt
 def search_suggestions(request):
