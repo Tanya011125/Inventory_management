@@ -1054,13 +1054,17 @@ def spares_in(request):
         try:
             data = json.loads(request.body.decode("utf-8"))
             part_no = data.get("part_no")
+            recieved_from = data.get("recieved_from")
             qty_in = int(data.get("qty_in", 0))
+            remarks = data.get("remarks")
 
-            if not part_no or qty_in <= 0:
+            if not part_no or qty_in <= 0 or not recieved_from:
                 return JsonResponse({"error": "Invalid data"}, status=400)
 
             # Find item in master list
             item = spares_master.find_one({"part_no": part_no})
+            bin_no = spares_master.find_one({"part_no": part_no}).get("bin_no","")
+            rack_no = spares_master.find_one({"part_no": part_no}).get("rack_no","")
 
             if not item:
                 return JsonResponse({"error": "Item not found"}, status=404)
@@ -1069,8 +1073,8 @@ def spares_in(request):
             current_qty = int(item.get("qty", 0))
 
             # Date tracking
-            entry_date = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%Y-%m-%d %H:%M:%S")
-
+            entry_date = datetime.now(ZoneInfo("Asia/Kolkata"))
+            date= entry_date
 
             # New quantity = old + incoming qty
             new_qty = current_qty + qty_in
@@ -1084,7 +1088,11 @@ def spares_in(request):
                         "history": {
                             "type": "IN",
                             "qty": qty_in,
-                            "date": entry_date
+                            "recieved_from": recieved_from,
+                            "date": entry_date,
+                            "remarks": remarks,
+                            "bin_no": bin_no,
+                            "rack_no": rack_no
                         }
                     }
                 }
@@ -1094,18 +1102,26 @@ def spares_in(request):
             spares_in_col.insert_one({
                 "part_no": part_no,
                 "qty_in": qty_in,
+                "recieved_from": recieved_from,
                 "previous_qty": current_qty,
                 "new_qty": new_qty,
-                "date": entry_date
+                "date": entry_date,
+                "remarks": remarks,
+                "bin_no": bin_no,
+                "rack_no": rack_no
             })
 
             spares_audit.insert_one({
                 "part_no": part_no,
                 "date": datetime.now(tz=ZoneInfo("Asia/Kolkata")),
+                "recieved_from": recieved_from,
                 "in": qty_in,
                 "out": 0,
                 "qty_after": new_qty,
                 "user": user,
+                "remarks": remarks,
+                "bin_no": bin_no,
+                "rack_no": rack_no,
             })
 
             return JsonResponse({"status": "success", "new_qty": new_qty})
@@ -1125,12 +1141,15 @@ def spares_out(request):
             part_no = data.get("part_no")
             qty_out = int(data.get("qty_out", 0))
             handing_over_to = data.get("handing_over_to")
-
+            remarks= data.get("remarks")
             if not part_no or qty_out <= 0 or not handing_over_to:
                 return JsonResponse({"error": "Invalid input"}, status=400)
 
             # Find item
             item = spares_master.find_one({"part_no": part_no})
+            bin_no = spares_master.find_one({"part_no": part_no}).get("bin_no","")
+            rack_no = spares_master.find_one({"part_no": part_no}).get("rack_no","")
+
             if not item:
                 return JsonResponse({"error": "Item not found"}, status=404)
 
@@ -1145,7 +1164,8 @@ def spares_out(request):
             # Date
             from datetime import datetime
             from zoneinfo import ZoneInfo
-            entry_date = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%Y-%m-%d %H:%M:%S")
+            entry_date = datetime.now(ZoneInfo("Asia/Kolkata"))
+            date= entry_date
 
             # Update master list
             spares_master.update_one(
@@ -1157,7 +1177,10 @@ def spares_out(request):
                             "type": "OUT",
                             "qty": qty_out,
                             "handed_to": handing_over_to,
-                            "date": entry_date
+                            "date": entry_date,
+                            "remarks": remarks,
+                            "bin_no": bin_no,
+                            "rack_no": rack_no
                         }
                     }
                 }
@@ -1170,7 +1193,10 @@ def spares_out(request):
                 "handing_over_to": handing_over_to,
                 "previous_qty": current_qty,
                 "new_qty": new_qty,
-                "date": entry_date
+                "date": entry_date,
+                "remarks": remarks,
+                "bin_no": bin_no,
+                "rack_no": rack_no
             })
 
             spares_audit.insert_one({
@@ -1180,6 +1206,10 @@ def spares_out(request):
                 "out": qty_out,
                 "qty_after": new_qty,
                 "user": user,
+                "remarks": remarks,
+                "handing_over_to": handing_over_to,
+                "bin_no": bin_no,
+                "rack_no": rack_no,
             })
 
             return JsonResponse({"status": "success", "new_qty": new_qty})
@@ -1246,12 +1276,24 @@ def spares_audit_filter(request):
 
     return JsonResponse({"error": "Method Not Allowed"}, status=405)
 
+import re
+
+def sort_key(part_no):
+    part_no = str(part_no).strip()
+    match = re.match(r'^(\d+)', part_no)
+
+    if match:
+        return (1, int(match.group(1)), part_no)
+    else:
+        return (2, float('inf'), part_no)
+
 @csrf_exempt
 def stock_check(request):
     if request.method == "GET":
         try:
             # Fetch stock same way as stock check
             items = list(spares_master.find({}, {"_id": 0}))
+            items.sort(key=lambda x: sort_key(x.get("part_no", "")))
 
             # Build CSV
             import csv
@@ -1261,14 +1303,14 @@ def stock_check(request):
             writer = csv.writer(output)
 
             # Header
-            writer.writerow(["Sl No", "Item Name", "Part No", "Qty"])
+            writer.writerow(["Sl No", "Part No","Item Name", "Qty"])
 
             # Rows
             for idx, item in enumerate(items):
                 writer.writerow([
                     idx + 1,
-                    item.get("item_name", ""),
                     item.get("part_no", ""),
+                    item.get("item_name", ""),
                     item.get("qty", 0)
                 ])
 

@@ -33,11 +33,6 @@ export default function SparesManagement() {
           </div>
           <div className={styles.cardGrid}>
             <div className={styles.card}>
-              <div className={styles.cardTitle}>SPARES MASTER LIST</div>
-              <div className={styles.cardDesc}>Item details with location item placed.</div>
-              <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/spares/spares-master-list">OPEN</Link>
-            </div>
-            <div className={styles.card}>
               <div className={styles.cardTitle}>SPARES IN</div>
               <div className={styles.cardDesc}>Item-in details.</div>
               <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/spares/spares-in">OPEN</Link>
@@ -48,14 +43,19 @@ export default function SparesManagement() {
               <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/spares/spares-out">OPEN</Link>
             </div>
             <div className={styles.card}>
-              <div className={styles.cardTitle}>VIEW ITEM</div>
-              <div className={styles.cardDesc}>Complete history of all items.</div>
+              <div className={styles.cardTitle}>VIEW ITEM LOG</div>
+              <div className={styles.cardDesc}>Complete history of an item.</div>
               <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/spares/view-item">OPEN</Link>
             </div>
             <div className={styles.card}>
               <div className={styles.cardTitle}>COMPLETE STOCK CHECK</div>
               <div className={styles.cardDesc}>View and Download item details.</div>
               <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/spares/stock-check">OPEN</Link>
+            </div>
+             <div className={styles.card}>
+              <div className={styles.cardTitle}>MANAGE MASTER LIST - SPARES</div>
+              <div className={styles.cardDesc}>Item details with location item placed.</div>
+              <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/spares/spares-master-list">OPEN</Link>
             </div>
           </div>
         </div>
@@ -189,6 +189,13 @@ function SparesInPage() {
   const [currentQty, setCurrentQty] = useState(0);
   const [qtyIn, setQtyIn] = useState("");
   const [status, setStatus] = useState("");
+  const [remarks, setRemarks] = useState("");
+  const [partSearch, setPartSearch] = useState("");
+  const [filteredItems, setFilteredItems] = useState([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [binNo, setBinNo] = useState("");
+  const [rackNo, setRackNo] = useState("");
+  const [recievedFrom, setRecievedFrom] = useState("");
 
   const navigate = useNavigate();
 
@@ -208,6 +215,19 @@ function SparesInPage() {
       console.error(err);
     }
   };
+  
+  useEffect(() => {
+  if (!partSearch) {
+    setFilteredItems([]);
+    return;
+  }
+
+  const filtered = items.filter((i) =>
+    i.part_no.toLowerCase().startsWith(partSearch.toLowerCase())
+  ).sort((a, b) => a.part_no.localeCompare(b.part_no));
+
+  setFilteredItems(filtered);
+  }, [partSearch, items]);
 
   const clearForm = () => {
     setItemName('');
@@ -215,6 +235,13 @@ function SparesInPage() {
     setQtyIn('');
     setSelectedPart('');
     setStatus('');
+    setRemarks('');
+    setPartSearch('');
+    setFilteredItems([]);
+    setShowDropdown(false);
+    setBinNo("");
+    setRackNo("");
+    setRecievedFrom("");
   };
 
   const handleSelectPart = (partNo) => {
@@ -224,6 +251,8 @@ function SparesInPage() {
     if (item) {
       setItemName(item.item_name);
       setCurrentQty(item.qty || 0);
+      setBinNo(item.bin_no || "");
+      setRackNo(item.rack_no || "");
     }
   };
 
@@ -243,6 +272,10 @@ function SparesInPage() {
         body: JSON.stringify({
           part_no: selectedPart,
           qty_in: Number(qtyIn),
+          remarks: remarks,
+          bin_no: binNo,
+          rack_no: rackNo,
+          recieved_from: recievedFrom,
         }),
       });
 
@@ -252,6 +285,7 @@ function SparesInPage() {
       alert("Quantity added!");
       setStatus("Quantity updated");
       setQtyIn("");
+      setRecievedFrom("");
       clearForm();
       loadMasterList();
     } catch (err) {
@@ -275,22 +309,39 @@ function SparesInPage() {
           <div className={styles.card}>
             <form onSubmit={onSubmit} className={styles.form}>
               <div className={styles.formGrid2}>
-                <label className={styles.label}>
-                  ITEM PART NO
-                  <select
-                    className={styles.control}
-                    value={selectedPart}
-                    onChange={(e) => handleSelectPart(e.target.value)}
-                    required
-                  >
-                    <option value="">-- select --</option>
-                    {items.map((i) => (
-                      <option key={i.part_no} value={i.part_no}>
-                        {i.part_no}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <div className={styles.autocompleteWrapper}>
+                  <label className={styles.label}>
+                    ITEM PART NO
+                    <input
+                      className={styles.control}
+                      value={partSearch}
+                      placeholder="Type part number..."
+                      onChange={(e) => {
+                      setPartSearch(e.target.value);
+                      setShowDropdown(true);
+                      }}
+                      onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+                    />
+
+                    {showDropdown && filteredItems.length > 0 && (
+                    <div className={styles.dropdown}>
+                      {filteredItems.map((i) => (
+                      <div
+                        key={i.part_no}
+                        className={styles.dropdownItem}
+                        onClick={() => {
+                        setPartSearch(i.part_no);
+                        setShowDropdown(false);
+                        handleSelectPart(i.part_no);
+                      }}
+                      >
+                      {i.part_no}
+                      </div>
+                      ))}
+                    </div>
+                    )}
+                  </label>
+                </div>
 
                 <label className={styles.label}>
                   ITEM NAME
@@ -302,10 +353,24 @@ function SparesInPage() {
                 </label>
 
                 <label className={styles.label}>
-                  CURRENT QTY
+                  AVAILABLE QTY
                   <input className={styles.control} value={currentQty} readOnly />
                 </label>
+              </div>
 
+              <div className={styles.formGrid2}>
+                <label className={styles.label}>
+                  BIN NO
+                  <input className={styles.control} value={binNo} readOnly />
+                </label>
+
+                <label className={styles.label}>
+                  RACK NO
+                  <input className={styles.control} value={rackNo} readOnly />
+                </label>
+
+              </div>
+              <div className={styles.formGrid2}>
                 <label className={styles.label}>
                   QUANTITY IN
                   <input
@@ -317,8 +382,28 @@ function SparesInPage() {
                     min="1"
                   />
                 </label>
-              </div>
+                
+                <label className={styles.label}>
+                  RECIEVED FROM
+                  <input
+                    className={styles.control}
+                    type="text"
+                    value={recievedFrom}
+                    onChange={(e) => setRecievedFrom(e.target.value)}
+                    required
+                  />
+                </label>
 
+                <label className={styles.label}>
+                  REMARKS
+                  <input
+                    className={styles.control}
+                    type="text"
+                    value={remarks}
+                    onChange={(e) => setRemarks(e.target.value)}
+                  />
+                </label>
+              </div>
               {status && <div>{status}</div>}
 
               <div className={styles.pageActions}>
@@ -339,7 +424,13 @@ function SparesOutPage() {
   const [qtyAvailable, setQtyAvailable] = useState(0);
   const [qtyOut, setQtyOut] = useState("");
   const [handingTo, setHandingTo] = useState("");
+  const [remarks, setRemarks] = useState("");
   const [status, setStatus] = useState("");
+  const [partSearch, setPartSearch] = useState("");
+  const [filteredItems, setFilteredItems] = useState([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [binNo, setBinNo] = useState("");
+  const [rackNo, setRackNo] = useState("");
 
   const navigate = useNavigate();
 
@@ -360,14 +451,34 @@ function SparesOutPage() {
       console.error(err);
     }
   };
-  
+
+  useEffect(() => {
+  if (!partSearch) {
+    setFilteredItems([]);
+    return;
+  }
+
+  const filtered = items.filter((i) =>
+    i.part_no.toLowerCase().startsWith(partSearch.toLowerCase())
+  ).sort((a, b) => a.part_no.localeCompare(b.part_no));
+
+  setFilteredItems(filtered);
+  }, [partSearch, items]);
+
   const clearForm = () => {
+    
     setItemName('');
     setHandingTo('');
+    setRemarks('');
     setQtyAvailable('');
     setQtyOut('');
     setSelectedPart('');
     setStatus('');
+    setPartSearch('');
+    setFilteredItems([]);
+    setShowDropdown(false);
+    setBinNo("");
+    setRackNo("");
   };
 
   // Auto-fill name + qty
@@ -378,6 +489,8 @@ function SparesOutPage() {
     if (item) {
       setItemName(item.item_name);
       setQtyAvailable(item.qty || 0);
+      setBinNo(item.bin_no || "");
+      setRackNo(item.rack_no || "");
     }
   };
 
@@ -399,6 +512,9 @@ function SparesOutPage() {
           part_no: selectedPart,
           qty_out: Number(qtyOut),
           handing_over_to: handingTo,
+          remarks: remarks,
+          bin_no: binNo,
+          rack_no: rackNo,
         }),
       });
 
@@ -436,22 +552,39 @@ function SparesOutPage() {
               <div className={styles.formGrid2}>
 
                 {/* Part No */}
-                <label className={styles.label}>
-                  ITEM PART NO
-                  <select
-                    className={styles.control}
-                    value={selectedPart}
-                    onChange={(e) => handleSelectPart(e.target.value)}
-                    required
-                  >
-                    <option value="">-- select --</option>
-                    {items.map((i) => (
-                      <option key={i.part_no} value={i.part_no}>
-                        {i.part_no}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <div className={styles.autocompleteWrapper}>
+                  <label className={styles.label}>
+                    ITEM PART NO
+                    <input
+                      className={styles.control}
+                      value={partSearch}
+                      placeholder="Type part number..."
+                      onChange={(e) => {
+                      setPartSearch(e.target.value);
+                      setShowDropdown(true);
+                      }}
+                      onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+                    />
+
+                    {showDropdown && filteredItems.length > 0 && (
+                    <div className={styles.dropdown}>
+                      {filteredItems.map((i) => (
+                      <div
+                        key={i.part_no}
+                        className={styles.dropdownItem}
+                        onClick={() => {
+                        setPartSearch(i.part_no);
+                        setShowDropdown(false);
+                        handleSelectPart(i.part_no);
+                      }}
+                      >
+                      {i.part_no}
+                      </div>
+                      ))}
+                    </div>
+                    )}
+                  </label>
+                </div>
 
                 {/* Item Name */}
                 <label className={styles.label}>
@@ -468,7 +601,21 @@ function SparesOutPage() {
                     readOnly
                   />
                 </label>
+              </div>
 
+              <div className={styles.formGrid2}>
+                <label className={styles.label}>
+                  BIN NO
+                  <input className={styles.control} value={binNo} readOnly />
+                </label>
+
+                <label className={styles.label}>
+                  RACK NO
+                  <input className={styles.control} value={rackNo} readOnly />
+                </label>
+              </div>
+
+              <div className={styles.formGrid2}>
                 {/* Qty Out */}
                 <label className={styles.label}>
                   QUANTITY OUT
@@ -493,8 +640,17 @@ function SparesOutPage() {
                     required
                   />
                 </label>
-              </div>
 
+                <label className={styles.label}>
+                  REMARKS
+                  <input
+                    className={styles.control}
+                    type="text"
+                    value={remarks}
+                    onChange={(e) => setRemarks(e.target.value)}
+                  />
+                </label>
+              </div>
               {status && <div>{status}</div>}
 
               <div className={styles.pageActions}>
@@ -517,8 +673,24 @@ function ViewItemPage() {
   const [auditList, setAuditList] = useState([]);
   const [startDate, setStart] = useState("");
   const [endDate, setEnd] = useState("");
+  const [partSearch, setPartSearch] = useState("");
+  const [filteredItems, setFilteredItems] = useState([]);
+  const [showDropdown, setShowDropdown] = useState(false);
 
   const navigate = useNavigate();
+  
+  const formatDateTime = (isoDate) => {
+  const d = new Date(isoDate);
+  d.setMinutes(d.getMinutes() + 330);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+
+  const hours = String(d.getHours()).padStart(2, "0");
+  const mins = String(d.getMinutes()).padStart(2, "0");
+
+  return `${day}-${month}-${year} ${hours}:${mins}`;
+  };
 
   // Load master list
   useEffect(() => {
@@ -537,7 +709,20 @@ function ViewItemPage() {
       console.error(err);
     }
   };
-  
+
+  useEffect(() => {
+  if (!partSearch) {
+    setFilteredItems([]);
+    return;
+  }
+
+  const filtered = items.filter((i) =>
+    i.part_no.toLowerCase().startsWith(partSearch.toLowerCase())
+  ).sort((a, b) => a.part_no.localeCompare(b.part_no));
+
+  setFilteredItems(filtered);
+  }, [partSearch, items]);
+
   const filterAudit = async () => {
     const res = await fetch(
       `${apiBase()}/spares/audit/filter?part_no=${selectedPart}&start_date=${startDate}&end_date=${endDate}`,
@@ -598,22 +783,39 @@ function ViewItemPage() {
             {/* FORM SECTION */}
             <div className={styles.form}>
               <div className={styles.formGrid2}>
-                <label className={styles.label}>
-                  ITEM PART NO
-                  <select
-                    className={styles.control}
-                    value={selectedPart}
-                    onChange={(e) => handleSelectPart(e.target.value)}
-                    required
-                  >
-                    <option value="">-- select --</option>
-                    {items.map((i) => (
-                      <option key={i.part_no} value={i.part_no}>
-                        {i.part_no}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <div className={styles.autocompleteWrapper}>
+                  <label className={styles.label}>
+                    ITEM PART NO
+                    <input
+                      className={styles.control}
+                      value={partSearch}
+                      placeholder="Type part number..."
+                      onChange={(e) => {
+                      setPartSearch(e.target.value);
+                      setShowDropdown(true);
+                      }}
+                      onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+                    />
+
+                    {showDropdown && filteredItems.length > 0 && (
+                    <div className={styles.dropdown}>
+                      {filteredItems.map((i) => (
+                      <div
+                        key={i.part_no}
+                        className={styles.dropdownItem}
+                        onClick={() => {
+                        setPartSearch(i.part_no);
+                        setShowDropdown(false);
+                        handleSelectPart(i.part_no);
+                      }}
+                      >
+                      {i.part_no}
+                      </div>
+                      ))}
+                    </div>
+                    )}
+                  </label>
+                </div>
 
                 <label className={styles.label}>
                   ITEM NAME
@@ -625,7 +827,7 @@ function ViewItemPage() {
                 </label>
 
                 <label className={styles.label}>
-                  CURRENT QTY
+                  AVAILABLE QTY
                   <input
                     className={styles.control}
                     value={qtyAvailable}
@@ -672,6 +874,8 @@ function ViewItemPage() {
                       <th>Out</th>
                       <th>User</th>
                       <th>Qty As On Date</th>
+                      <th>Handed To / Recieved From</th>
+                      <th>Remarks</th>
                     </tr>
                   </thead>
 
@@ -686,11 +890,13 @@ function ViewItemPage() {
                       auditList.map((row, idx) => (
                         <tr key={idx}>
                           <td>{idx + 1}</td>
-                          <td>{row.date}</td>
+                          <td>{formatDateTime(row.date)}</td>
                           <td>{row.in || "-"}</td>
                           <td>{row.out || "-"}</td>
                           <td>{row.user?.username}</td>
                           <td>{row.qty_after}</td>
+                          <td>{row.out ? row.handing_over_to || "-" :row.in ? row.recieved_from || "-" : "-"}</td>
+                          <td>{row.remarks || "-"}</td>
                         </tr>
                       ))
                     )}
@@ -731,6 +937,25 @@ function StockCheckPage() {
     window.open(`${apiBase()}/spares/stock`, "_blank");
   };
 
+  const sortedItems = [...items].sort((a, b) => {
+    const parse = (val) => {
+      const str = String(val).trim();
+      const match = str.match(/^([a-zA-Z\-]*)(\d+)/);
+      return {
+        prefix: match ? match[1] : str,
+        number: match ? parseInt(match[2], 10) : 0,
+      };
+    };
+
+    const A = parse(a.part_no);
+    const B = parse(b.part_no);
+
+    if (A.prefix !== B.prefix) {
+    return A.prefix.localeCompare(B.prefix);
+    }
+    return A.number - B.number;
+  });
+
   return (
     <div className={styles.page}>
           {/* Header */}
@@ -763,8 +988,8 @@ function StockCheckPage() {
                 <thead>
                   <tr>
                     <th>Sl No</th>
-                    <th>Item Name</th>
                     <th>Part No</th>
+                    <th>Item Name</th>
                     <th>Qty</th>
                   </tr>
                 </thead>
@@ -775,12 +1000,12 @@ function StockCheckPage() {
                       <td colSpan="4" style={{ textAlign: "center" }}>No items</td>
                     </tr>
                   ) : (
-                    items.map((item, index) => (
+                    sortedItems.map((item, index) => (
                       <tr key={index}>
                         <td>{index + 1}</td>
-                        <td>{item.item_name}</td>
                         <td>{item.part_no}</td>
-                        <td>{item.qty}</td>
+                        <td>{item.item_name}</td>
+                        <td>{item.qty ?? 0}</td>
                       </tr>
                     ))
                   )}
