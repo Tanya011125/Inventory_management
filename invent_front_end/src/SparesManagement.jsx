@@ -154,8 +154,10 @@ function SparesMasterListPage() {
                   BIN NO
                   <input
                     className={styles.control}
+                    type="number"
                     value={binNo}
                     onChange={(e) => setBinNo(e.target.value)}
+                    required 
                   />
                 </label>
 
@@ -163,8 +165,10 @@ function SparesMasterListPage() {
                   RACK NO
                   <input
                     className={styles.control}
+                    type="number"
                     value={rackNo}
                     onChange={(e) => setRackNo(e.target.value)}
+                    required 
                   />
                 </label>
               </div>
@@ -869,10 +873,10 @@ function ViewItemPage() {
                   <thead>
                     <tr>
                       <th>Sl No</th>
+                      <th>User</th>
                       <th>Date</th>
                       <th>In</th>
                       <th>Out</th>
-                      <th>User</th>
                       <th>Qty As On Date</th>
                       <th>Handed To / Recieved From</th>
                       <th>Remarks</th>
@@ -890,10 +894,10 @@ function ViewItemPage() {
                       auditList.map((row, idx) => (
                         <tr key={idx}>
                           <td>{idx + 1}</td>
+                          <td>{row.user?.username}</td>
                           <td>{formatDateTime(row.date)}</td>
                           <td>{row.in || "-"}</td>
                           <td>{row.out || "-"}</td>
-                          <td>{row.user?.username}</td>
                           <td>{row.qty_after}</td>
                           <td>{row.out ? row.handing_over_to || "-" :row.in ? row.recieved_from || "-" : "-"}</td>
                           <td>{row.remarks || "-"}</td>
