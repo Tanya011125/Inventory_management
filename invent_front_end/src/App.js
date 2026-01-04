@@ -8,7 +8,7 @@ import React, { use, useEffect, useMemo, useState } from 'react';
 import { useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
 // import formElements from './components/FormElements';
-import { Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
+//import { Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
 import UserDashboardChoice from './DashboardChoice';          
 import SparesManagement from './SparesManagement';  
 import DashboardChoice from './DashboardChoice';
@@ -2684,7 +2684,7 @@ function App() {
   }
 
   return (
-    <Routes>
+      <Routes>
         <Route path="/choice" element={
           <ProtectedRoute requiredRole="user">
             <DashboardChoice />
@@ -2746,8 +2746,6 @@ function App() {
             <Sticker />
           </ProtectedRoute>
         } />
-      </Routes>
-    </BrowserRouter>
         <Route path="/spares/spares-master-list" element={
           <ProtectedRoute requiredRole="user">
             <SparesMasterListPage />
@@ -2773,7 +2771,7 @@ function App() {
             <StockCheckPage />
           </ProtectedRoute>
         } />
-    </Routes>
+      </Routes>
   );
 }
 
