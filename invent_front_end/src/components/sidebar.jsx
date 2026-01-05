@@ -11,11 +11,8 @@ function Sidebar() {
     { to: '/admin/manage-projects', label: 'MANAGE PROJECTS' },
     { to: '/admin/add-user', label: 'ADD USER' },
   ] : [
-    { to: '/dashboard', label: 'DASHBOARD' },
-    { to: '/item-in', label: 'ITEM IN' },
-    { to: '/item-out', label: 'ITEM OUT' },
-    { to: '/search', label: 'REPORT' },
-    { to: '/edit', label: 'EDIT/VIEW' },
+    { to: '/user/dashboard', label: 'DASHBOARD' },
+    { to: '/user/spares', label: 'SPARES MANAGEMENT' },
   ];
   return (
     <nav className={styles.sidebar}>

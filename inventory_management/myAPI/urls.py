@@ -27,4 +27,13 @@ urlpatterns = [
     path('admin/projects/items/delete', views.admin_delete_item),  # DELETE /api/admin/projects/items/delete
     path('admin/projects/list', views.admin_get_projects),  # GET /api/admin/projects/list
     path('admin/projects/items', views.admin_get_project_items),  # GET /api/admin/projects/items?projectName=...
+
+    # spares management
+    path("spares/master/add", views.spares_master_add), # POST /spares/master 
+    path("spares/in", views.spares_in), # POST /spares/in 
+    path("spares/master", views.spares_master_list),  # GET /spares/master
+    path("spares/out", views.spares_out), # POST /spares/out
+    path("spares/audit", views.spares_audit_view), # GET /spares/audit
+    path("spares/stock", views.stock_check), # GET /spares/stock
+    path("spares/audit/filter", views.spares_audit_filter),  # GET /spares/audit/filter
 ]
