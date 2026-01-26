@@ -16,6 +16,9 @@ import os
 from io import StringIO
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
+from reportlab.lib import colors
 
 client = MongoClient("mongodb://localhost:27017/")
 db = client["inventory_db"]  # Use your DB name
@@ -493,6 +496,8 @@ def items_in(request):
                 "itemIn": True,  # Always true when item is entered
                 "itemOut": False,
                 "dateOut": None,  # Will be set when item goes out
+                "rfc": False, 
+                "rfcDate": None,
                 "itemRectificationDetails": "",  # New field for rectification details
                 "itemFeedback1Details": "",  # New field for feedback 1 details
                 "itemFeedback2Details": "",  # New field for feedback 2 details
@@ -604,6 +609,43 @@ def update_item_out(request, pass_no):
                 updated_item["dateOut"] = None
                 print(f"DEBUG: Clearing dateOut for item {i} since itemOut is False")
             
+            # Handle handedOverTo
+            if updated_item["itemOut"]:
+                updated_item["handedOverTo"] = update_item.get("handedOverTo", "") or ""
+            else:
+                updated_item["handedOverTo"] = ""
+
+            if "rfc" in update_item:
+                wants_rfc = bool(update_item.get("rfc", False))
+                rectification = (
+                    update_item.get("itemRectificationDetails")
+                    or original_item.get("itemRectificationDetails")
+                    or ""
+                )
+
+                # RFC allowed ONLY after rectification
+                if wants_rfc and rectification.strip():
+                    updated_item["rfc"] = True
+                    updated_item["rfcDate"] = (
+                        update_item.get("rfcDate")
+                        or original_item.get("rfcDate")
+                        or datetime.now(ZoneInfo("Asia/Kolkata")).date().isoformat()
+                    )
+                else:
+                    updated_item["rfc"] = False
+                    updated_item["rfcDate"] = None
+            else:
+                # Backward compatibility
+                updated_item["rfc"] = original_item.get("rfc", False)
+                updated_item["rfcDate"] = original_item.get("rfcDate")
+            
+            # Handle Item Out (Handed Over)
+            if updated_item.get("itemOut"):
+                if not updated_item.get("rfc"):
+                    updated_item["itemOut"] = False
+                    updated_item["dateOut"] = None
+                    updated_item["handedOverTo"] = ""   
+
             # Handle rectification details
             if "itemRectificationDetails" in update_item:
                 updated_item["itemRectificationDetails"] = update_item["itemRectificationDetails"] or ""
@@ -718,21 +760,28 @@ def _build_date_filter(from_str: str | None, to_str: str | None):
 
 def _build_search_query(params):
     search_type = params.get("type")
-    value = params.get("value")
     from_date = params.get("from")
     to_date = params.get("to")
-    serialProjectName = params.get("serialProjectName")
+    serialProjectName = params.getlist("serialProjectName")
     query = {}
-    if search_type == "passNo" and value:
-        query["passNo"] = value
-    elif search_type == "serialNumber" and value:
-        if serialProjectName:
-            query["projectName"] = {"$regex": serialProjectName, "$options": "i"}    
-        query["items.serialNumber"] = {"$regex": value.upper(), "$options": "i"}
-    elif search_type == "ItemPartNo" and value:
-        query["items.partNumber"] = value
-    elif search_type == "ProjectName" and value:
-        query["projectName"] = {"$regex": value, "$options": "i"}
+    if search_type == "passNo":
+        value = params.get("value")
+        if value:
+            query["passNo"] = value
+    elif search_type == "serialNumber":
+        value = params.get("value")
+        if value:
+            if serialProjectName:
+                query["projectName"] = {"$in": serialProjectName}    
+            query["items.serialNumber"] = {"$regex": value.upper(), "$options": "i"}
+    elif search_type == "ItemPartNo":
+        value = params.get("value")
+        if value:
+            query["items.partNumber"] = value
+    elif search_type == "ProjectName":
+        values = params.getlist("value")
+        if values:
+           query["projectName"] = {"$in": values}
     elif search_type == "DateRange":
         pass  # only date filter
     date_cond = _build_date_filter(from_date, to_date)
@@ -757,12 +806,14 @@ def _filter_serial(items, serial_substring=None, status=None):
             continue
 
         # 🔹 Status filter (optional)
-        if status == "In" and not (item.get("itemIn") and not item.get("itemOut")):
+        if status == "In" and not (item.get("itemIn") and not item.get("rfc") and not item.get("itemOut")):
             continue
 
         if status == "Out" and not (item.get("itemIn") and item.get("itemOut")):
             continue
-
+        if status == "RFC" and not (item.get("itemIn") is True and item.get("rfc") is True and item.get("itemOut") is False):
+            continue
+        
         filtered.append(item)
 
     return filtered
@@ -776,9 +827,11 @@ def _filter_items(items, part_number=None, status=None):
             continue
 
         # Status filter
-        if status == "In" and not (item.get("itemIn") and not item.get("itemOut")):
+        if status == "In" and not (item.get("itemIn") and not item.get("rfc") and not item.get("itemOut")):
             continue
         if status == "Out" and not (item.get("itemIn") and item.get("itemOut")):
+            continue
+        if status == "RFC" and not (item.get("itemIn") is True and item.get("rfc") is True and item.get("itemOut") is False):
             continue
 
         filtered.append(item)
@@ -821,22 +874,27 @@ def search(request):
         results = []
         serial_no = 1
         search_type = params.get("type")
-        search_value = params.get("value")
+        search_values = params.getlist("value")
         status = params.get("status")  # "In" or "Out"
 
         for doc in docs:
             filtered_items = doc.get("items", [])
 
-            if search_type == "serialNumber" and search_value:
-                filtered_items = _filter_serial(filtered_items, serial_substring=search_value, status=status)
-            elif search_type == "ItemPartNo" and search_value:
-                filtered_items = _filter_items(filtered_items, part_number=search_value, status=status)
-            elif status in ("In", "Out"):
+            if search_type == "serialNumber" and search_values:
+                filtered_items = _filter_serial(filtered_items, serial_substring=search_values[0], status=status)
+            elif search_type == "ItemPartNo" and search_values:
+                filtered_items = _filter_items(filtered_items, part_number=search_values[0], status=status)
+            elif status in ("In", "Out", "RFC"):
                 filtered_items = _filter_items(filtered_items, status=status)
 
             for item in filtered_items:
                 item["serialNo"] = serial_no
                 serial_no += 1
+
+                if item.get("itemOut") is True:
+                    item["handedOverTo"] = item.get("handedOverTo", "")
+                else:
+                    item["handedOverTo"] = ""
 
             doc = {**doc, "items": filtered_items}
             results.append(_shape_search_result({**doc, "_id": None}))
@@ -853,6 +911,70 @@ def search(request):
 
 @csrf_exempt
 def search_download(request):
+    def excel_text(val):
+        if val is None or val == "":
+            return ""
+        return f'="{val}"'
+    def pdf_text(val):
+        if val is None:
+            return ""
+        return str(val)
+
+    COLUMN_MAP = {
+    "serialNo": lambda c: c["serial_no"],
+    "projectName": lambda c: c["project_name"],
+    "customerName": lambda c: c["customer"].get("name", ""),
+    "unitAddress": lambda c: c["customer"].get("unitAddress", ""),
+    "location": lambda c: c["customer"].get("location", ""),
+    "equipmentType": lambda c: c["item"].get("equipmentType", ""),
+    "itemName": lambda c: c["item"].get("itemName", ""),
+    "defectDetails": lambda c: c["item"].get("defectDetails", ""),
+    "status": lambda c: c["status"],
+    "rectification": lambda c: c["item"].get("itemRectificationDetails", ""),
+    "remarks1": lambda c: c["item"].get("itemFeedback1Details", ""),
+    "remarks2": lambda c: c["item"].get("itemFeedback2Details", ""),
+    "createdBy": lambda c: c["createdBy"],
+    "updatedBy": lambda c: c["updatedBy"],
+    }
+    CSV_MAP = {
+        "passNo": lambda c: excel_text(c["pass_no"]),
+        "phone": lambda c: excel_text(c["phone"]),
+        "partNumber": lambda c: excel_text(c["item"].get("partNumber", "")),
+        "serialNumber": lambda c: excel_text(c["item"].get("serialNumber", "")),
+        "dateIn": lambda c: excel_text(c["date_in"]),
+        "dateOut": lambda c: excel_text(c["date_out"]),
+    }
+    PDF_MAP = {
+        "passNo": lambda c: pdf_text(c["pass_no"]),
+        "phone": lambda c: pdf_text(c["phone"]),
+        "partNumber": lambda c: pdf_text(c["item"].get("partNumber", "")),
+        "serialNumber": lambda c: pdf_text(c["item"].get("serialNumber", "")),
+        "dateIn": lambda c: pdf_text(c["date_in"]),
+        "dateOut": lambda c: pdf_text(c["date_out"]),
+    }
+    COLUMN_LABELS = {
+    "serialNo": "Sl No",
+    "passNo": "Pass No",
+    "projectName": "Project Name",
+    "customerName": "Customer Name",
+    "unitAddress": "Customer Unit Address",
+    "location": "Customer Location",
+    "phone": "Customer Phone",
+    "equipmentType": "Equipment Type",
+    "itemName": "Item Name",
+    "partNumber": "Part Number",
+    "serialNumber": "Serial Number",
+    "defectDetails": "Defect Details",
+    "status": "Status",
+    "dateIn": "Date In",
+    "dateOut": "Date Out",
+    "rectification": "Rectification Details",
+    "remarks1": "Remarks 1",
+    "remarks2": "Remarks 2",
+    "createdBy": "Created By",
+    "updatedBy": "Updated By",
+    }
+
     if request.method != "GET":
         error_response = {"error": "Only GET allowed"}
         log_api_response("search_download", request.method, dict(request.GET), error_response)
@@ -863,27 +985,44 @@ def search_download(request):
         return err
 
     try:
-        serial_no = 1
         params = request.GET
+        format_type = request.GET.get("format", "csv")  # csv or pdf
+
+        if format_type == "pdf":
+            COLUMN_MAP = {**COLUMN_MAP, **PDF_MAP}
+        else:  # default csv
+            COLUMN_MAP = {**COLUMN_MAP, **CSV_MAP}
+
+        selected_columns = params.get("columns")
+        if selected_columns:
+            selected_columns = selected_columns.split(",")
+        else:
+            selected_columns = []
+
+        serial_no = 1
         query = _build_search_query(params)
         docs = list(collection.find(query))
 
         # Create CSV content
         output = StringIO()
         writer = csv.writer(output)
+
+        headers = [col for col in selected_columns if col in COLUMN_MAP]
+        header_labels = [COLUMN_LABELS[col] for col in headers]
         
-        # Write header row
-        writer.writerow([
-            "Sl No.","Pass No", "Project Name", 
-            "Customer Name", "Customer Unit Address", "Customer Location", "Customer Phone",
-            "Equipment Type", "Item Name", "Part Number", "Serial Number", "Defect Details", 
-            "Status", "Date In", "Date Out", "Item Rectification Details", "Feedback 1 details", "Feedback 2 details", "CreatedBy", "updatedBy"
-        ])
-        
+        rows = []
+
         # Write data rows - one row per item
         for doc in docs:
             pass_no = doc.get("passNo", "")
             date_in = doc.get("dateIn", "")
+            if date_in:
+                try:
+                    y, m, d = date_in[:10].split("-")
+                    date_in = f"{d}-{m}-{y}"
+                except:
+                    date_in = ""
+
             project_name = doc.get("projectName", "")
             customer = doc.get("customer", {})
             items = doc.get("items", [])
@@ -892,12 +1031,12 @@ def search_download(request):
             
             search_type = params.get("type")
             status = params.get("status")
-            search_value = params.get("value")
-            if search_type == "serialNumber" and search_value:
-                items = _filter_serial(items, serial_substring=search_value, status=status)
-            elif search_type == "ItemPartNo" and search_value:
-                items = _filter_items(items, part_number = search_value, status=status)
-            elif status in ("In", "Out"):
+            search_values = params.getlist("value")
+            if search_type == "serialNumber" and search_values:
+                items = _filter_serial(items, serial_substring=search_values[0], status=status)
+            elif search_type == "ItemPartNo" and search_values:
+                items = _filter_items(items, part_number=search_values[0], status=status)
+            elif status in ("In", "Out", "RFC"):
                 items = _filter_items(items, status=status)
 
             # Filter items by part number if searching by part number
@@ -907,7 +1046,12 @@ def search_download(request):
             
             for item in items:
                 # Determine status: OUT if both itemIn and itemOut are true, else IN
-                status = "OUT" if item.get("itemIn") and item.get("itemOut") else "IN"
+                if item.get("itemOut"):
+                    status = "OUT"
+                elif item.get("rfc"):
+                    status = "RFC"
+                else:
+                    status = "IN"
                 
                 # Format phone number properly (remove scientific notation)
                 phone = customer.get("phone", "")
@@ -917,48 +1061,81 @@ def search_download(request):
                 # Format date properly for Excel
                 date_out = item.get("dateOut", "")
                 if date_out:
-                    # Ensure date is in YYYY-MM-DD format
                     try:
-                        if isinstance(date_out, str):
-                            date_out = date_out[:10]  # Take first 10 characters
+                        y, m, d = date_out[:10].split("-")
+                        date_out = f"{d}-{m}-{y}"
                     except:
                         date_out = ""
                 
-                writer.writerow([
-                    serial_no,
-                    pass_no,
-                    project_name,
-                    customer.get("name", ""),
-                    customer.get("unitAddress", ""),
-                    customer.get("location", ""),
-                    phone,
-                    item.get("equipmentType", ""),
-                    item.get("itemName", ""),
-                    item.get("partNumber", ""),
-                    item.get("serialNumber", ""),
-                    item.get("defectDetails", ""),
-                    status,
-                    date_in,
-                    date_out,
-                    item.get("itemRectificationDetails", ""),
-                    item.get("itemFeedback1Details", ""),
-                    item.get("itemFeedback2Details", ""),
-                    createdBy,
-                    updatedBy
-                ])
+                ctx = {
+                    "serial_no": serial_no,
+                    "pass_no": pass_no,
+                    "project_name": project_name,
+                    "customer": customer,
+                    "item": item,
+                    "phone": phone,
+                    "status": status,
+                    "date_in": date_in,
+                    "date_out": date_out,
+                    "createdBy": createdBy,
+                    "updatedBy": updatedBy,
+                }
+
+                row = []
+                for col in headers:
+                    row.append(COLUMN_MAP[col](ctx))
+
+                rows.append(row)
                 serial_no += 1
+
+        writer.writerow(header_labels)
+        for row in rows:
+            writer.writerow(row)
 
         csv_content = output.getvalue()
         output.close()
         
-        default_filename = f"{datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%Y-%m-%d')}_inventory_export.csv"
-        # Return CSV file
-        response = HttpResponse(csv_content, content_type='text/csv')
-        response['Content-Disposition'] = f'attachment; filename="{default_filename}"'
+        if format_type == "csv":
+            default_filename = f"{datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%Y-%m-%d')}_inventory_export.csv"
+            response = HttpResponse(csv_content, content_type='text/csv')
+            response['Content-Disposition'] = f'attachment; filename="{default_filename}"'
+            return response
         
-        log_api_response("search_download", request.method, dict(params), {"rows": len(docs)})
-        return response
+        elif format_type == "pdf":
+            buffer = BytesIO()
 
+            doc = SimpleDocTemplate(
+                buffer,
+                pagesize=landscape(A4),
+                rightMargin=20,
+                leftMargin=20,
+                topMargin=20,
+                bottomMargin=20
+            )
+
+            table_data = [header_labels] + rows
+
+            table = Table(table_data, repeatRows=1)
+            table.setStyle(TableStyle([
+                ("GRID", (0,0), (-1,-1), 0.5, colors.black),
+                ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
+                ("FONT", (0,0), (-1,0), "Helvetica-Bold"),
+                ("ALIGN", (0,0), (-1,-1), "LEFT"),
+                ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+                ("FONTSIZE", (0,0), (-1,-1), 8),
+                ("BOTTOMPADDING", (0,0), (-1,-1), 4),
+                ("TOPPADDING", (0,0), (-1,-1), 4),
+            ]))
+
+            doc.build([table])
+            buffer.seek(0)
+
+            default_filename = f"{datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%Y-%m-%d')}_inventory_export.pdf"
+
+            response = HttpResponse(buffer, content_type="application/pdf")
+            response["Content-Disposition"] = f'attachment; filename="{default_filename}"'
+            return response
+        
     except Exception as e:
         stack_trace = traceback.format_exc()
         error_response = {"error": str(e)}
@@ -987,7 +1164,16 @@ def search_download_sticker(request):
         docs = list(collection.find(query))
         for doc in docs:
             passNo = doc.get("passNo","")
-            dateIn = doc.get("dateIn","")
+            raw_date = doc.get("dateIn")
+
+            if isinstance(raw_date, datetime):
+                dateIn = raw_date.strftime("%d-%m-%Y")
+            elif isinstance(raw_date, str) and raw_date:
+                dateIn = raw_date[:10].split("T")[0]
+                y, m, d = dateIn.split("-")
+                dateIn = f"{d}-{m}-{y}"
+            else:
+                dateIn = ""
             items = doc.get("items", [])
             projectName = doc.get("projectName","")
             unitAddress = doc.get("customer",{}).get("unitAddress","")
@@ -1091,6 +1277,23 @@ def search_download_form(request):
         column_widths = {'A': 5, 'B': 20, 'C': 25, 'D': 15, 'E': 20, 'F': 40, 'G': 10}
 
         # ---------- FUNCTIONS ----------
+
+        def format_ddmmyyyy(raw_date):
+            if not raw_date:
+                return ""
+
+            if isinstance(raw_date, datetime):
+                return raw_date.strftime("%d-%m-%Y")
+
+            if isinstance(raw_date, str):
+                try:
+                    dt = datetime.fromisoformat(raw_date.replace("Z", ""))
+                    return dt.strftime("%d-%m-%Y")
+                except Exception:
+                    pass
+
+            return ""
+
         def create_page(wb, page_number, doc):
             ws = wb.create_sheet(title=f"Customer Support MILCOM - Page {page_number}")
             for col, width in column_widths.items():
@@ -1113,7 +1316,7 @@ def search_download_form(request):
             header_values = {
                 'C3:D3': doc.get("passNo", ""),
                 'F3:G3': datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%d-%m-%Y"),
-                'C4:D4': doc.get("dateIn", ""),
+                'C4:D4': format_ddmmyyyy(doc.get("dateIn", "")),
                 'F4:G4': cust.get("name", ""),
                 'C5:D5': doc.get("projectName", ""),
                 'F5:G5': cust.get("phone", ""),
@@ -1563,7 +1766,6 @@ def spares_audit_filter(request):
             return JsonResponse({"error": str(e)}, status=500)
 
     return JsonResponse({"error": "Method Not Allowed"}, status=405)
-
 import re
 
 def sort_key(part_no):

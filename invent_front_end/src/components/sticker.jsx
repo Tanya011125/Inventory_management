@@ -2,6 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import styles from './styles.module.css';
 import { useNavigate } from 'react-router-dom';
 
+export const formatDateDDMMYYYY = (dateStr) => {
+  if (!dateStr) return '';
+
+  const [yyyy, mm, dd] = dateStr.split('T')[0].split('-');
+  return `${dd}-${mm}-${yyyy}`;
+};
+
 function apiBase() {
     return 'http://localhost:8000/api';
 }
@@ -205,7 +212,7 @@ function Sticker() {
             <div className={styles.pageHeader}>
                 <div className={styles.pageTitle}>PRINT STICKERS/HANDING OVER FORM</div>
                 <div className={styles.pageActions}>
-                    <button className={`${styles.btn} ${styles.btnGhost}`} onClick={() => { navigate('/dashboard'); clearForm() }}>CLOSE</button>
+                    <button className={`${styles.btn} ${styles.btnGhost}`} onClick={() => { navigate('/user/dashboard'); clearForm() }}>CLOSE</button>
                 </div>
             </div>
             <div className={styles.card}>
@@ -274,7 +281,7 @@ function Sticker() {
                 <div className={styles.cardItemOut} style={{ marginTop: 12 }}>
                     <div className={styles.formGrid3}>
                         <div><b>PRIVATE PASS NO:</b> {record.passNo}</div>
-                        <div><b>DATE IN:</b> {record.dateIn}</div>
+                        <div><b>DATE IN:</b> {formatDateDDMMYYYY(record.dateIn)}</div>
                         <div><b>CUSTOMER:</b> {record.customer?.name}</div>
                         <div><b>PROJECT:</b> {record.projectName || ''}</div>
                         <div><b>PHONE:</b> {record.customer?.phone}</div>

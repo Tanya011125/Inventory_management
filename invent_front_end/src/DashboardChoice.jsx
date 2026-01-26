@@ -15,20 +15,12 @@ export default function DashboardChoice() {
       <div className={styles.inventoryMain}>
         <Header />
         <div className={styles.page}>
-          <div className={styles.pageHeader}>
-            <div className={styles.pageTitle}>USER DASHBOARD</div>
-            <span className={styles.pill}>USER</span>
-          </div>
           <div className={styles.cardGrid}>
             <div className={styles.card}>
-              <div className={styles.cardTitle}>DASHBOARD</div>
-              <div className={styles.cardDesc}>MANAGE ITEMS.</div>
-              <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/user/dashboard">OPEN</Link>
+              <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/user/dashboard">COMPLAINTS REGISTRY</Link>
             </div>
             <div className={styles.card}>
-              <div className={styles.cardTitle}>SPARES MANAGEMENT</div>
-              <div className={styles.cardDesc}>MANAGE SPARES.</div>
-              <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/user/spares">OPEN</Link>
+              <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/user/spares">SPARES MANAGEMENT</Link>
             </div>
           </div>
         </div>

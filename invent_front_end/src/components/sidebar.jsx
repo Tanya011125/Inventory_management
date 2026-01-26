@@ -11,7 +11,7 @@ function Sidebar() {
     { to: '/admin/manage-projects', label: 'MANAGE PROJECTS' },
     { to: '/admin/add-user', label: 'ADD USER' },
   ] : [
-    { to: '/user/dashboard', label: 'DASHBOARD' },
+    { to: '/user/dashboard', label: 'COMPLAINTS REGISTRY' },
     { to: '/user/spares', label: 'SPARES MANAGEMENT' },
   ];
   return (

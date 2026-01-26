@@ -674,3 +674,18 @@
 .autocompleteWrapper {
   position: relative;
 }
+.checkboxGroup {
+  border: 1px solid #ccc;
+  padding: 8px;
+  max-height: 140px;
+  overflow-y: auto;
+  background: #fff;
+}
+
+.checkboxItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  cursor: pointer;
+}

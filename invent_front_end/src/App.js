@@ -14,6 +14,7 @@ import SparesManagement from './SparesManagement';
 import DashboardChoice from './DashboardChoice';
 import { SparesMasterListPage, SparesInPage, SparesOutPage, ViewItemPage, StockCheckPage } from './SparesManagement';
 import { Outlet } from "react-router-dom";
+import { formatDateDDMMYYYY } from './utils/date';
 
 function apiBase() {
   return 'http://localhost:8000/api';
@@ -197,34 +198,29 @@ function Dashboard() {
         <Header />
         <div className={styles.page}>
           <div className={styles.pageHeader}>
-            <div className={styles.pageTitle}>DASHBOARD</div>
+            <div className={styles.pageTitle}>COMPLAINTS REGISTRY</div>
             <button className={`${styles.btn} ${styles.btnGhost}`} onClick={() => {navigate('/choice');}}>CLOSE</button>
           </div>
           <div className={styles.cardGrid}>
             <div className={styles.card}>
-              <div className={styles.cardTitle}>ITEM IN</div>
+              <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/item-in">ITEM IN</Link>
               <div className={styles.cardDesc}>Create a new incoming pass with customer and item details.</div>
-              <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/item-in">OPEN</Link>
             </div>
             <div className={styles.card}>
-              <div className={styles.cardTitle}>ITEM OUT</div>
+              <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/item-out">ITEM OUT</Link>
               <div className={styles.cardDesc}>Mark items as out for a given pass number.</div>
-              <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/item-out">OPEN</Link>
             </div>
             <div className={styles.card}>
-              <div className={styles.cardTitle}>REPORT</div>
+              <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/search">REPORT</Link>
               <div className={styles.cardDesc}>Find records by private pass no, part no, project or date range.</div>
-              <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/search">OPEN</Link>
             </div>
             <div className={styles.card}>
-              <div className={styles.cardTitle}>EDIT/VIEW</div>
+              <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/edit">EDIT/VIEW</Link>
               <div className={styles.cardDesc}>Edit or delete a record by pass number.</div>
-              <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/edit">OPEN</Link>
             </div>
             <div className={styles.card}>
-              <div className={styles.cardTitle}>PRINT STICKERS/HANDING OVER FORM</div>
+              <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/print-sticker">PRINT STICKERS/HANDING OVER FORM</Link>
               <div className={styles.cardDesc}>Print stickers for items or form to handover for testing.</div>
-              <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/print-sticker">OPEN</Link>
             </div>
           </div>
         </div>
@@ -861,6 +857,15 @@ function ItemOutPage() {
   const updateRectificationDetails = (idx, value) => {
     setRecord((prev) => ({ ...prev, items: prev.items.map((it, i) => i === idx ? { ...it, itemRectificationDetails: value } : it) }));
   };
+  
+  const updateHandedOverTo = (idx, value) => {
+    setRecord((prev) => ({
+      ...prev,
+      items: prev.items.map((it, i) =>
+        i === idx ? { ...it, handedOverTo: value } : it
+      ),
+    }));
+  };
 
   const updateFeedback1Details = (idx, value) => {
     setRecord((prev) => ({ ...prev, items: prev.items.map((it, i) => i === idx ? { ...it, itemFeedback1Details: value } : it) }));
@@ -887,6 +892,15 @@ function ItemOutPage() {
       return;
     }
     
+    const itemsWithoutHandedOver = record.items.filter(
+      item => item.itemOut && (!item.handedOverTo || item.handedOverTo.trim() === '')
+    );
+
+    if (itemsWithoutHandedOver.length > 0) {
+      alert('Please enter Handed Over To for all Item Out entries');
+      return;
+    }
+
     // Confirm submission
     const confirmSubmit = window.confirm('Are you sure you want to update this record?');
     if (!confirmSubmit) {
@@ -901,6 +915,7 @@ function ItemOutPage() {
         serialNumber: it.serialNumber, 
         itemOut: !!it.itemOut, 
         dateOut: it.dateOut || null, 
+        handedOverTo: it.handedOverTo || '',
         itemRectificationDetails: it.itemRectificationDetails || '',
         itemFeedback1Details: it.itemFeedback1Details || '',
         itemFeedback2Details: it.itemFeedback2Details || ''
@@ -945,7 +960,13 @@ function ItemOutPage() {
           <button className={`${styles.btn} ${styles.btnGhost}`} onClick={() => {navigate('/user/dashboard'); clearForm()}}>CLOSE</button>
         </div>
       </div>
-      <div className={styles.card}>
+      <form
+        className={styles.card}
+        onSubmit={(e) => {
+          e.preventDefault();
+          fetchRecord();
+        }}
+      >
         <div className={styles.formRow}>
           <label className={styles.label}>
             PRIVATE PASS NO
@@ -969,15 +990,15 @@ function ItemOutPage() {
             </div>
           </label>
           <div className={styles.pageActions}>
-            <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={fetchRecord}>SEARCH</button>
+            <button type="submit" className={`${styles.btn} ${styles.btnPrimary}`}>SEARCH</button>
           </div>
         </div>
-      </div>
+      </form>
       {record ? (
         <div className={styles.cardItemOut} style={{ marginTop: 12 }}>
           <div className={styles.formGrid3}>
             <div><b>PRIVATE PASS NO:</b> {record.passNo}</div>
-            <div><b>DATE IN:</b> {record.dateIn}</div>
+            <div><b>DATE IN:</b> {formatDateDDMMYYYY(record.dateIn)}</div>
             <div><b>CUSTOMER:</b> {record.customer?.name}</div>
             <div><b>PROJECT:</b> {record.projectName || ''}</div>
             <div><b>PHONE:</b> {record.customer?.phone}</div>
@@ -988,7 +1009,7 @@ function ItemOutPage() {
             <table className={styles.table} style={{ minWidth: 900 }}>
               <thead>
                 <tr>
-                  <th>TYPE</th><th>NAME</th><th>PART NO</th><th>SERIAL NO</th><th>DEFECT</th><th>ITEMOUT</th><th>DATE OUT</th><th>RECTIFICATION DETAILS</th><th>REMARKS 1</th><th>REMARKS 2</th>
+                  <th>TYPE</th><th>NAME</th><th>PART NO</th><th>SERIAL NO</th><th>DEFECT</th><th>ITEMOUT</th><th>DATE OUT</th><th>RECTIFICATION DETAILS</th><th>HANDED OVER TO</th><th>REMARKS 1</th><th>REMARKS 2</th>
                 </tr>
               </thead>
               <tbody>
@@ -1033,6 +1054,21 @@ function ItemOutPage() {
                             ⚠️ Rectification details required for Item Out
                           </div>
                         )}
+                    </td>
+                     <td>
+                      <input
+                        type="text"
+                        className={styles.control}
+                        placeholder="Handed over to"
+                        value={it.handedOverTo || ""}
+                        onChange={(e) => updateHandedOverTo(idx, e.target.value)}
+                        disabled={!it.itemOut}
+                      />
+                      {it.itemOut && (!it.handedOverTo || it.handedOverTo.trim() === "") && (
+                        <div style={{ fontSize: "0.75rem", color: "#ff6b6b" }}>
+                          ⚠️ Required for Item Out
+                        </div>
+                      )}
                     </td>
                     <td>
                       <textarea
@@ -1514,7 +1550,7 @@ function ManageProjects() {
 function SearchPage() {
   const [type, setType] = useState('passNo');
   const [fstatus, setFStatus] = useState('All');
-  const [value, setValue] = useState('');
+  const [value, setValue] = useState([]);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [result, setResult] = useState(null);
@@ -1525,8 +1561,37 @@ function SearchPage() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [projectOptions, setProjectOptions] = useState([]);
   const suggestionRef = useRef(null);
-  const [projectValue, setProjectValue] = useState('');
+  const [projectValue, setProjectValue] = useState([]);
+  const [downloadFormat, setDownloadFormat] = useState('csv'); // 'csv' or 'pdf'
   // const {MultiSelectAutocomplete} = formElements;
+  const COLUMNS = [
+  { key: "serialNo", label: "SL NO.", default: true },
+  { key: "passNo", label: "PASS NO", default: true },
+  { key: "projectName", label: "PROJECT NAME", default: false },
+  { key: "customerName", label: "CUSTOMER NAME", default: false },
+
+  { key: "unitAddress", label: "CUSTOMER UNIT ADDRESS", default: false },
+  { key: "location", label: "CUSTOMER LOCATION", default: true },
+  { key: "phone", label: "CUSTOMER PHONE", default: false },
+
+  { key: "equipmentType", label: "EQUIPMENT TYPE", default: false },
+  { key: "itemName", label: "ITEM NAME", default: true },
+  { key: "partNumber", label: "PART NUMBER", default: true },
+  { key: "serialNumber", label: "SERIAL NUMBER", default: true },
+
+  { key: "defectDetails", label: "DEFECT DETAILS", default: true },
+  { key: "status", label: "STATUS", default: true },
+  { key: "dateIn", label: "DATE IN", default: true },
+  { key: "dateOut", label: "DATE OUT", default: true },
+
+  { key: "rectification", label: "RECTIFICATION DETAILS", default: false },
+  { key: "handedOverTo", label: "HANDED OVER TO", default: false },
+  { key: "itemFeedback1Details", label: "REMARKS 1", default: false },
+  { key: "itemFeedback2Details", label: "REMARKS 2", default: false },
+  { key: "createdBy", label: "CREATED BY", default: false },
+  { key: "updatedBy", label: "UPDATED BY", default: false },
+  ];
+  const [visibleColumns, setVisibleColumns] = useState(COLUMNS.filter(c => c.default).map(c => c.key));
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -1551,12 +1616,12 @@ function SearchPage() {
       setSuggestions([]);
       return;
     }
-    if (value.length >= 2) {
+    if (type !== 'ProjectName' && typeof value === 'string' && value.length >= 2) {
       const fetchSuggestions = async () => {
         try {
           const params = new URLSearchParams();
           params.set('type', type);
-          params.set('value', value);
+          params.set('value', Array.isArray(value) ? value.join(',') : value);
           const res = await fetch(`${apiBase()}/search/suggestions?${params.toString()}`, { headers: { ...authHeaders() } });
           const data = await res.json();
           if (!res.ok) throw new Error(data?.error || 'Failed to fetch suggestions');
@@ -1574,9 +1639,16 @@ function SearchPage() {
     }
   }, [value, type, selectionMode]);
 
+  useEffect(() => {
+    if (type === 'ProjectName') {
+      fetchProjects();
+    }
+  }, [type]);
+
+
   const clearForm = () => {
     setType('passNo');
-    setValue('');
+    setValue([]);
     setFrom('');
     setTo('');
     setResult(null);
@@ -1586,22 +1658,25 @@ function SearchPage() {
     setShowSuggestions(false);
     setProjectValue('');
   };
-
-  const clearOnChange = () =>{
-    setValue('');
+  const clearOnChange = () => {
+    if (type === 'ProjectName') {
+      setValue([]);
+    } else {
+      setValue('');
+    }
     setFrom('');
     setTo('');
     setFStatus('All');
     setProjectValue('');
-  }
+  };
 
   const runSearch = async () => {
     setStatus('');
     try {
       const params = new URLSearchParams();
       params.set('type', type);
-      if (type !== 'DateRange' && !value) {
-        setStatus('Please enter a value');
+      if (type !== 'DateRange' && (!value || value.length === 0)) {
+        setStatus('Please select at least one value');
         return;
       }
       if (type === 'DateRange' && !from && !to) {
@@ -1612,8 +1687,11 @@ function SearchPage() {
         setStatus('Please enter at least 3 characters for Serial Number search');
         return;
       }
-      if (type === 'serialNumber') params.set('serialProjectName', projectValue);
-      if (type !== 'DateRange' && value) params.set('value', value);
+      if (type === 'ProjectName') {
+      value.forEach(v => params.append('value', v));
+      } else if (type !== 'DateRange' && value.length > 0) {
+      params.set('value', value);
+     }
       if (from) params.set('from', from);
       if (to) params.set('to', to);
       params.set('status',fstatus);
@@ -1630,8 +1708,8 @@ function SearchPage() {
     try {
       const params = new URLSearchParams();
       params.set('type', type);
-      if (type !== 'DateRange' && !value) {
-        setStatus('Please enter a value');
+      if (type !== 'DateRange' && (!value || value.length === 0)) {
+        setStatus('Please select at least one value');
         return;
       }
       if (type === 'DateRange' && !from && !to) {
@@ -1642,18 +1720,33 @@ function SearchPage() {
         setStatus('Please enter at least 3 characters for Serial Number search');
         return;
       }
-      if (type === 'serialNumber') params.set('serialProjectName', projectValue);
-      if (type !== 'DateRange' && value) params.set('value', value);
+      if (type === 'serialNumber'){
+        projectValue.forEach(p =>
+          params.append('serialProjectName', p)
+        );
+      }
+      if (type === 'serialNumber' && projectValue.length === 0) {
+        setStatus('Please select at least one project');
+        return;
+      }
+      if (type === 'ProjectName') {
+      value.forEach(v => params.append('value', v));
+      } else if (type !== 'DateRange' && value.length > 0) {
+      params.set('value', value);
+      }
       if (from) params.set('from', from);
       if (to) params.set('to', to);
       params.set('status',fstatus);
+      params.set('columns', visibleColumns.join(','));
+      params.set('format', downloadFormat); 
       const res = await fetch(`${apiBase()}/search/download?${params.toString()}`, { headers: { ...authHeaders() } });
       if (!res.ok) throw new Error('Download failed');
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url; 
-      const defaultName = `${new Date().toISOString().split('T')[0]}_item_details.csv`;
+      const ext = downloadFormat === 'pdf' ? 'pdf' : 'csv';
+      const defaultName = `${new Date().toISOString().split('T')[0]}_item_details.${ext}`;
       a.download = defaultName;
       a.click();
       // a.download = 'search_results.csv'; a.click();
@@ -1675,6 +1768,14 @@ function SearchPage() {
     setProjectOptions(data.projects || []);
   };
 
+  const allProjectsSelectedSerialNumber =
+    projectOptions.length > 0 &&
+    projectOptions.every(p => projectValue.includes(p));
+
+  const allProjectsSelectedProjectName =
+    projectOptions.length > 0 &&
+    projectOptions.every(p => value.includes(p));
+
   // Function to render search results table
   const renderSearchResults = () => {
     if (!result || !result.data || result.data.length === 0) {
@@ -1686,74 +1787,128 @@ function SearchPage() {
         <div style={{ marginBottom: 12 }}>
           <h3>SEARCH RESULTS ({result.count} ENTRIES FOUND)</h3>
         </div>
+        <div style={{ marginBottom: 12 }}>
+          <b>Select Columns</b>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginTop: 6 }}>
+            {COLUMNS.map(col => (
+              <label key={col.key} style={{ fontSize: "0.85rem" }}>
+                <input
+                   type="checkbox"
+                   checked={visibleColumns.includes(col.key)}
+                   onChange={(e) => {
+                    if (e.target.checked) {
+                      setVisibleColumns(prev => [...prev, col.key]);
+                    } else {
+                      setVisibleColumns(prev =>
+                        prev.filter(c => c !== col.key)
+                      );
+                    }
+                   }}
+                />{" "}
+                {col.label}
+              </label>
+            ))}
+          </div>
+        </div>
         <div className={styles.tableWrap} style={{ overflowX: 'auto', maxHeight: 450, overflowY: 'auto', overflowX: 'auto' }}>
           <table className={styles.table} style={{ minWidth: '1400px' }}>
             <thead>
               <tr>
-                <th>SL NO.</th>
-                <th>PASS NO</th>
-                <th>PROJECT NAME</th>
-                <th>CUSTOMER NAME</th>
-                <th>CUSTOMER UNIT ADDRESS</th>
-                <th>CUSTOMER LOCATION</th>
-                <th>CUSTOMER PHONE</th>
-                <th>EQUIPMENT TYPE</th>
-                <th>ITEM NAME</th>
-                <th>PART NUMBER</th>
-                <th>SERIAL NUMBER</th>
-                <th>DEFECT DETAILS</th>
-                <th>STATUS</th>
-                <th>DATE IN</th>
-                <th>DATE OUT</th>
-                <th>RECTIFICATION DETAILS</th>
-                <th>REMARKS 1 </th>
-                <th>REMARKS 2 </th>
-                <th>CREATED BY</th>
-                <th>UPDATED BY</th>
+                {COLUMNS
+                  .filter(col => visibleColumns.includes(col.key))
+                  .map(col => (
+                    <th key={col.key}>{col.label}</th>
+                  ))}
               </tr>
             </thead>
             <tbody>
               {result.data.map((doc, docIndex) => {
                 const items = doc.items || [];
+
                 return items.map((item, itemIndex) => {
-                  // Determine status: OUT if both itemIn and itemOut are true, else IN
-                  const status = item.itemIn && item.itemOut ? "OUT" : "IN";
-                  
-                  // Format phone number properly
-                  const phone = doc.customer?.phone || "";
-                  const formattedPhone = phone && !isNaN(phone) ? String(phone) : phone;
-                  
-                  // Format dates
+                  let statusVal = "IN";
+                  if (item.itemIn && item.itemOut) statusVal = "OUT";
+                  else if (item.rfc && !item.itemOut) statusVal = "RFC";
+
                   const dateIn = doc.dateIn || "";
                   const dateOut = item.dateOut || "";
-                  
+                  const phone = doc.customer?.phone || "";
+
                   return (
                     <tr key={`${docIndex}-${itemIndex}`}>
-                      <td>{item.serialNo || ""}</td>
-                      <td>{doc.passNo || ""}</td>
-                      <td>{doc.projectName || ""}</td>
-                      <td>{doc.customer?.name || ""}</td>
-                      <td>{doc.customer?.unitAddress || ""}</td>
-                      <td>{doc.customer?.location || ""}</td>
-                      <td>{formattedPhone}</td>
-                      <td>{item.equipmentType || ""}</td>
-                      <td>{item.itemName || ""}</td>
-                      <td>{item.partNumber || ""}</td>
-                      <td>{item.serialNumber || ""}</td>
-                      <td>{item.defectDetails || ""}</td>
-                      <td>{status}</td>
-                      <td>{dateIn}</td>
-                      <td>{dateOut}</td>
-                      <td style={{textAlign: 'left'}}>{item.itemRectificationDetails || ""}</td>
-                      <td style={{textAlign: 'left'}}>{item.itemFeedback1Details || ""}</td>
-                      <td style={{textAlign: 'left'}}>{item.itemFeedback2Details || ""}</td>
-                      <td>{doc.createdBy || ""}</td>
-                      <td>{doc.updatedBy || ""}</td>
+                      {COLUMNS
+                        .filter(col => visibleColumns.includes(col.key))
+                        .map(col => {
+                          switch (col.key) {
+                            case "serialNo":
+                              return <td key={col.key}>{item.serialNo || ""}</td>;
+
+                            case "passNo":
+                              return <td key={col.key}>{doc.passNo || ""}</td>;
+
+                            case "projectName":
+                              return <td key={col.key}>{doc.projectName || ""}</td>;
+
+                            case "customerName":
+                              return <td key={col.key}>{doc.customer?.name || ""}</td>;
+
+                            case "unitAddress":
+                              return <td key={col.key}>{doc.customer?.unitAddress || ""}</td>;
+
+                            case "location":
+                              return <td key={col.key}>{doc.customer?.location || ""}</td>;
+
+                            case "phone":
+                              return <td key={col.key}>{phone}</td>;
+
+                            case "equipmentType":
+                              return <td key={col.key}>{item.equipmentType || ""}</td>;
+
+                            case "itemName":
+                              return <td key={col.key}>{item.itemName || ""}</td>;
+
+                            case "partNumber":
+                              return <td key={col.key}>{item.partNumber || ""}</td>;
+
+                            case "serialNumber":
+                              return <td key={col.key}>{item.serialNumber || ""}</td>;
+
+                            case "defectDetails":
+                              return <td key={col.key}>{item.defectDetails || ""}</td>;
+
+                            case "status":
+                              return <td key={col.key}>{statusVal}</td>;
+
+                            case "dateIn":
+                              return <td key={col.key}>{formatDateDDMMYYYY(dateIn)}</td>;
+
+                            case "dateOut":
+                              return <td key={col.key}>{formatDateDDMMYYYY(dateOut)}</td>;
+
+                            case "rectification":
+                              return <td key={col.key}>{item.itemRectificationDetails || ""}</td>;
+                            case "remarks1":
+                              return <td key={col.key}>{item.itemFeedback1Details || ""}</td>;
+
+                            case "remarks2":
+                              return <td key={col.key}>{item.itemFeedback2Details || ""}</td>;
+
+                            case "createdBy":
+                              return <td key={col.key}>{doc.createdBy || ""}</td>;
+
+                            case "updatedBy":
+                              return <td key={col.key}>{doc.updatedBy || ""}</td>;
+
+                            default:
+                              return <td key={col.key}></td>;
+                          }
+                        })}
                     </tr>
                   );
                 });
               })}
             </tbody>
+
           </table>
         </div>
       </div>
@@ -1768,7 +1923,13 @@ function SearchPage() {
           <button className={`${styles.btn} ${styles.btnGhost}`} onClick={() => {navigate('/user/dashboard'); clearForm()}}>CLOSE</button>
         </div>
       </div>
-      <div className={styles.card}>
+      <form
+        className={styles.card}
+        onSubmit={(e) => {
+          e.preventDefault();
+          runSearch();
+        }}
+      >
         <div className={styles.formGrid3}>
           <label className={styles.label}>TYPE
             <select
@@ -1787,20 +1948,48 @@ function SearchPage() {
 
             <label className={styles.label}>
               {type === 'passNo' ? 'PRIVATE PASS NO' : type === 'ItemPartNo' ? 'PART NO' : type === 'serialNumber' ? 'SERIAL NUMBER' : 'PROJECT NAME'}
-              {type === 'ProjectName' ?
-                <select 
-                  className={styles.control} 
-                  value={value} 
-                  onChange={(e) => {setValue(e.target.value)}}
-                  onFocus={fetchProjects} required>
-                  <option value="">SELECT PROJECT</option>
-                  {projectOptions.map((p, idx) => <option key={idx} value={p}>{p}</option>)}
-                </select>
-                :
+              {type === 'ProjectName' ? (
+                <div
+                  className={styles.checkboxGroup}
+                  onFocus={fetchProjects}
+                >
+                  <label className={styles.checkboxItem} style={{ fontWeight: '600' }}>
+                    <input
+                      type="checkbox"
+                      checked={allProjectsSelectedProjectName}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setValue([...projectOptions]);
+                        } else {
+                          setValue([]);
+                        }
+                      }}
+                    />
+                    Select All
+                  </label>
+                  {projectOptions.map((p, idx) => (
+                    <label key={idx} className={styles.checkboxItem}>
+                      <input
+                        type="checkbox"
+                        value={p}
+                        checked={value.includes(p)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setValue([...value, p]);
+                          } else {
+                            setValue(value.filter(v => v !== p));
+                          }
+                        }}
+                      />
+                      {p}
+                    </label>
+                  ))}
+                </div>
+              ) : 
                 <div className={styles.relativeContainer} ref={suggestionRef}>
                   <input
                     className={styles.control}
-                    value={value}
+                    value={Array.isArray(value) ? value.join(', ') : value}
                     onFocus={() => setShowSuggestions(true)} // expand again when input is focused
                     onChange={(e) => setValue(e.target.value)}
                   />
@@ -1822,26 +2011,57 @@ function SearchPage() {
               className={styles.control}
               value={fstatus}
               onChange={(e) => setFStatus(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  runSearch();
+                }
+              }}
             >
               <option value = "All">ALL</option>
               <option value = "In">IN</option>
               <option value = "Out">OUT</option>
+              <option value = "RFC">RFC</option>
             </select>
           </label>
           {type === 'serialNumber' && (
             <label className={styles.label}>PROJECT NAME
-              <select
-                className={styles.control}
-                value={projectValue}
-                onChange={(e) => setProjectValue(e.target.value)}
+              <div
+                className={styles.checkboxGroup}
                 onFocus={fetchProjects}
-                required
               >
-                <option value="">SELECT PROJECT</option>
+                <label className={styles.checkboxItem} style={{ fontWeight: '600' }}>
+                  <input
+                    type="checkbox"
+                    checked={allProjectsSelectedSerialNumber}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setProjectValue([...projectOptions]);
+                      } else {
+                        setProjectValue([]);
+                      }
+                    }}
+                  />
+                  Select All
+                </label>
                 {projectOptions.map((p, idx) => (
-                  <option key={idx} value={p}>{p}</option>
+                  <label key={idx} className={styles.checkboxItem}>
+                    <input
+                      type="checkbox"
+                      value={p}
+                      checked={projectValue.includes(p)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setProjectValue([...projectValue, p]);
+                        } else {
+                          setProjectValue(projectValue.filter(v => v !== p));
+                        }
+                      }}
+                    />
+                    {p}
+                  </label>
                 ))}
-              </select>
+              </div>
             </label>
           )}
           {type != 'passNo' && type != 'serialNumber' && (
@@ -1852,8 +2072,9 @@ function SearchPage() {
           )}
         </div>
         <div className={styles.pageActions}>
-          <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={runSearch}>VIEW ALL RECORDS</button>
-          <button className={`${styles.btn} ${styles.btnGhost}`} onClick={download}>DOWNLOAD REPORT</button>
+          <button type="submit" className={`${styles.btn} ${styles.btnPrimary}`}>VIEW ALL RECORDS</button>
+          <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => { setDownloadFormat('csv'); download(); }}>Download CSV</button>
+          <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => { setDownloadFormat('pdf'); download(); }}>Download PDF</button>
           <button
             type="button"
             className={`${styles.btn} ${styles.btnPrimary} ${styles.resetBtn}`}
@@ -1863,7 +2084,7 @@ function SearchPage() {
           </button>
         </div>
         {status ? <div style={{ marginTop: 12 }}>{status}</div> : null}
-      </div>
+      </form>
       
       {/* Display search results table */}
       {/* {renderSearchResults()} */}
@@ -2076,6 +2297,7 @@ function EditPage() {
       partNoOptions: [],
       itemIn: src.itemIn ?? true,
       itemOut: false,
+      rfc: false,
       dateOut: null
     };
 
@@ -2195,7 +2417,7 @@ function EditPage() {
   };
 
   const addItem = () => {
-    setDoc((prev) => ({ ...prev, items: [...prev.items, { equipmentType: '', itemName: '', partNumber: '', serialNumber: '', defectDetails: '', itemIn: true, itemOut: false, dateOut: null, itemRectificationDetails: '', itemFeedback1Details: '', itemFeedback2Details: ''}] }));
+    setDoc((prev) => ({ ...prev, items: [...prev.items, { equipmentType: '', itemName: '', partNumber: '', serialNumber: '', defectDetails: '', itemIn: true, itemOut: false, rfc: false, dateOut: null, itemRectificationDetails: '', itemFeedback1Details: '', itemFeedback2Details: ''}] }));
   };
 
   const deleteItem = (idx) => {
@@ -2231,6 +2453,15 @@ function EditPage() {
     const itemsWithoutDetails = doc.items.filter(item => item.itemOut && (!item.itemRectificationDetails || item.itemRectificationDetails.trim() === ''));
     if (itemsWithoutDetails.length > 0) {
       alert('Please enter rectification details for all items marked as "Item Out"');
+      return;
+    }
+
+    const invalidOutItems = doc.items.filter(
+      item => item.itemOut && !item.rfc
+    );
+
+    if (invalidOutItems.length > 0) {
+      alert('Item Out can be marked only after RFC');
       return;
     }
 
@@ -2300,7 +2531,13 @@ function EditPage() {
           <button className={`${styles.btn} ${styles.btnGhost}`} onClick={() => {navigate('/user/dashboard'); clearForm()}}>CLOSE</button>
         </div>
       </div>
-      <div className={styles.card}>
+      <form
+        className={styles.card}
+        onSubmit={(e) => {
+          e.preventDefault();
+          fetchDoc();
+        }}
+      >
         <div className={styles.formRow}>
           <label className={styles.label}>
             PRIVATE PASS NO
@@ -2324,10 +2561,10 @@ function EditPage() {
             </div>
           </label>
           <div className={styles.pageActions}>
-            <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={fetchDoc}>DISPLAY</button>
+            <button type="submit" className={`${styles.btn} ${styles.btnPrimary}`}>DISPLAY</button>
           </div>
         </div>
-      </div>
+      </form>
       {doc?.projectName ? (
         <div className={styles.cardEdit} style={{ marginTop: 12 }}>
           <div className={styles.pageActions} style={{ marginBottom: 16 }}>
@@ -2377,7 +2614,7 @@ function EditPage() {
               <table className={styles.table} style={{ minWidth: '1200px' }}>
                 <thead>
                   <tr>
-                    <th>ITEM TYPE</th><th>ITEM NAME</th><th>PART NO</th><th>SERIAL NO</th><th>DEFECT</th><th>ITEMOUT</th><th>DATE OUT</th><th>RECTIFICATION DETAILS</th><th>REMARKS 1 DETAILS</th><th>REMARKS 2 DETAILS</th>
+                    <th>ITEM TYPE</th><th>ITEM NAME</th><th>PART NO</th><th>SERIAL NO</th><th>DEFECT</th><th>ITEMOUT</th><th>RFC</th><th>DATE OUT</th><th>RECTIFICATION DETAILS</th><th>REMARKS 1 DETAILS</th><th>REMARKS 2 DETAILS</th>
                     {isEditing && <th style={{ minWidth: '100px', textAlign: 'center' }}>Actions</th>}
                   </tr>
                 </thead>
@@ -2419,7 +2656,15 @@ function EditPage() {
                       </td>
                       <td><input className={styles.control} value={(it.serialNumber || '').toUpperCase()} onChange={(e) => updateItem(idx, 'serialNumber', e.target.value)} readOnly={!isEditing} required /></td>
                       <td><input className={styles.control} value={it.defectDetails || ''} onChange={(e) => updateItem(idx, 'defectDetails', e.target.value)} readOnly={!isEditing} /></td>
-                      <td style={{ textAlign: 'center' }}><input type="checkbox" checked={!!it.itemOut} onChange={(e) => updateItem(idx, 'itemOut', e.target.checked)} disabled={!isEditing} /></td>
+                      <td style={{ textAlign: 'center' }}><input type="checkbox" checked={!!it.itemOut} onChange={(e) => updateItem(idx, 'itemOut', e.target.checked)} disabled={!isEditing || !it.rfc} /></td>
+                      <td style={{ textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={!!it.rfc}
+                          onChange={(e) => updateItem(idx, 'rfc', e.target.checked)}
+                          disabled={!isEditing || it.itemOut}  
+                        />
+                      </td>
                       <td>
                         <input 
                           type="date" 
