@@ -596,6 +596,14 @@ def update_item_out(request, pass_no):
             
             # Create updated item
             updated_item = original_item.copy()
+            if original_item.get("rfc") or original_item.get("itemOut"):
+                print(f"DEBUG: Item {i} is locked. Skipping updates.")
+                new_items.append(original_item)
+                continue
+            if original_item.get("rfc") and not update_item.get("rfc", True):
+                updated_item["rfc"] = True
+            if original_item.get("itemOut") and not update_item.get("itemOut", True):
+                updated_item["itemOut"] = True
             updated_item["itemOut"] = bool(update_item.get("itemOut", False))
             
             # Handle dateOut
@@ -640,8 +648,8 @@ def update_item_out(request, pass_no):
                 updated_item["rfcDate"] = original_item.get("rfcDate")
             
             # Handle Item Out (Handed Over)
-            if updated_item.get("itemOut"):
-                if not updated_item.get("rfc"):
+            if not original_item.get("itemOut"):
+                if updated_item.get("itemOut") and not updated_item.get("rfc"):
                     updated_item["itemOut"] = False
                     updated_item["dateOut"] = None
                     updated_item["handedOverTo"] = ""   
@@ -1294,8 +1302,12 @@ def search_download_form(request):
 
             return ""
 
-        def create_page(wb, page_number, doc):
-            ws = wb.create_sheet(title=f"Customer Support MILCOM - Page {page_number}")
+        def safe_merge(ws, cell_range):
+            if cell_range not in ws.merged_cells:
+                ws.merge_cells(cell_range)
+
+        def create_page(wb, pagenumber, doc):
+            ws = wb.create_sheet(title=f"CustomerSupportMILCOM{pagenumber}")
             for col, width in column_widths.items():
                 ws.column_dimensions[col].width = width
             for i in range(3, 7):
@@ -1303,11 +1315,11 @@ def search_download_form(request):
             ws.row_dimensions[7].height = 5
 
             # Titles
-            ws.merge_cells('A1:G1')
+            safe_merge(ws, 'A1:G1')
             ws['A1'] = "CUSTOMER SUPPORT MILCOM"
             style_cell(ws['A1'], bold=True, size=16, align="center")
 
-            ws.merge_cells('A2:G2')
+            safe_merge(ws, 'A2:G2')
             ws['A2'] = "Customer Complaint History Card"
             style_cell(ws['A2'], bold=True, size=12, align="center")
 
@@ -1327,13 +1339,13 @@ def search_download_form(request):
             for row, pairs in label_rows.items():
                 for label, start_col, end_col in pairs:
                     if start_col != end_col:
-                        ws.merge_cells(f"{start_col}{row}:{end_col}{row}")
+                        safe_merge(ws, f"{start_col}{row}:{end_col}{row}")
                     c = ws[f"{start_col}{row}"]
                     c.value = label
                     style_cell(c, bold=True, size=8, align="left")
 
             for cells, value in header_values.items():
-                ws.merge_cells(cells)
+                safe_merge(ws, cells)
                 c = ws[cells.split(":")[0]]
                 c.value = value
                 style_cell(c, align="left")
@@ -1352,9 +1364,9 @@ def search_download_form(request):
 
         def create_footer(ws, start_row=19, end_row=23):
             footers = ["HANDED OVER BY (CS-Rep)", "RECEIVED BY (TS-Rep)", "RECEIVED BACK BY AFTER REPAIR (CS-Rep)"]
-            ws.merge_cells(f'A{start_row}:B{start_row}')
-            ws.merge_cells(f'C{start_row}:D{start_row}')
-            ws.merge_cells(f'E{start_row}:G{start_row}')
+            safe_merge(ws, f'A{start_row}:B{start_row}')
+            safe_merge(ws, f'C{start_row}:D{start_row}')
+            safe_merge(ws, f'E{start_row}:G{start_row}')
             ws['A19'], ws['C19'], ws['E19'] = footers
             for cell in ['A19', 'C19', 'E19']:
                 style_cell(ws[cell], bold=True)
@@ -1366,24 +1378,24 @@ def search_download_form(request):
                     c.border = thin_border
                     c.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
 
-            ws.merge_cells(f'A{start_row+1}:B{end_row}')
-            ws.merge_cells(f'C{start_row+1}:D{end_row}')
-            ws.merge_cells(f'E{start_row+1}:G{end_row}')
+            safe_merge(ws, f'A{start_row+1}:B{end_row}')
+            safe_merge(ws, f'C{start_row+1}:D{end_row}')
+            safe_merge(ws, f'E{start_row+1}:G{end_row}')
 
         # ---------- POPULATE ----------
         serial_number = 1
         current_row = 9
-        page_number = 1
+        pagenumber = 1
         first_doc = docs[0] if docs else {}
-        ws = create_page(wb, page_number, first_doc)
+        ws = create_page(wb, pagenumber, first_doc)
 
         for doc in docs:
             items = [i for i in doc.get("items", []) if str(i.get("partNumber", "")).strip() in allowed_part_numbers]
             for item in items:
-                if (current_row - 9) % MAX_ITEMS_PER_PAGE == 0 and current_row != 9:
+                if (current_row - 9) == MAX_ITEMS_PER_PAGE:
                     create_footer(ws)
-                    page_number += 1
-                    ws = create_page(wb, page_number, doc)
+                    pagenumber += 1
+                    ws = create_page(wb, pagenumber, doc)
                     current_row = 9
 
                 row_values = [
@@ -1398,8 +1410,7 @@ def search_download_form(request):
                     c.alignment = Alignment(horizontal=align, vertical="top", wrap_text=True)
                 serial_number += 1
                 current_row += 1
-            if ws:
-                create_footer(ws)
+        create_footer(ws)
 
         # ---------- RESPONSE ----------
         output = BytesIO()

@@ -1013,81 +1013,84 @@ function ItemOutPage() {
                 </tr>
               </thead>
               <tbody>
-                {record.items?.map((it, idx) => (
-                  <tr key={idx}>
-                    <td>{it.equipmentType}</td>
-                    <td>{it.itemName}</td>
-                    <td>{it.partNumber}</td>
-                    <td>{it.serialNumber}</td>
-                    <td>{it.defectDetails}</td>
-                    {/* <td><input type="checkbox" checked={!!it.itemIn} readOnly /></td> */}
-                    <td><input type="checkbox" checked={!!it.itemOut} onChange={(e) => updateItemOut(idx, e.target.checked)} /></td>
-                    <td>
-                      <input 
-                        type="date" 
-                        className={styles.control} 
-                        value={it.dateOut || ''} 
-                        onChange={(e) => updateDateOut(idx, e.target.value)}
-                        placeholder="SELECT DATE"
-                      />
-                      {!it.dateOut && <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '2px' }}>NO DATE SET</div>}
-                      {it.itemOut && !it.dateOut && <div style={{ fontSize: '0.75rem', color: '#ff6b6b', marginTop: '2px' }}>⚠️ DATE REQUIRED FOR ITEM OUT</div>}
-                    </td>
-                    <td>
-                      <textarea
-                        className={styles.control}
-                        value={it.itemRectificationDetails || ""}
-                        onChange={(e) => updateRectificationDetails(idx, e.target.value)}
-                        required={it.itemOut}
-                        rows={1} // looks like an input initially
-                      />
-                      {it.itemOut &&
-                        (!it.itemRectificationDetails ||
-                          it.itemRectificationDetails.trim() === "") && (
-                          <div
-                            style={{
-                              fontSize: "0.75rem",
-                              color: "#ff6b6b",
-                              marginTop: "2px",
-                            }}
-                          >
-                            ⚠️ Rectification details required for Item Out
+                {record.items?.map((it, idx) => {
+                  const isLocked = it.itemOut === true;
+                  return(
+                    <tr key={idx}>
+                      <td>{it.equipmentType}</td>
+                      <td>{it.itemName}</td>
+                      <td>{it.partNumber}</td>
+                      <td>{it.serialNumber}</td>
+                      <td>{it.defectDetails}</td>
+                      {/* <td><input type="checkbox" checked={!!it.itemIn} readOnly /></td> */}
+                      <td><input type="checkbox" checked={!!it.itemOut} disabled={isLocked} onChange={(e) => updateItemOut(idx, e.target.checked)} /></td>
+                      <td>
+                        <input 
+                          type="date" 
+                          className={styles.control} 
+                          value={it.dateOut || ''} 
+                          onChange={(e) => updateDateOut(idx, e.target.value)}
+                          placeholder="SELECT DATE"
+                        />
+                        {!it.dateOut && <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '2px' }}>NO DATE SET</div>}
+                        {it.itemOut && !it.dateOut && <div style={{ fontSize: '0.75rem', color: '#ff6b6b', marginTop: '2px' }}>⚠️ DATE REQUIRED FOR ITEM OUT</div>}
+                      </td>
+                      <td>
+                        <textarea
+                          className={styles.control}
+                          value={it.itemRectificationDetails || ""}
+                          onChange={(e) => updateRectificationDetails(idx, e.target.value)}
+                          required={it.itemOut}
+                          rows={1} // looks like an input initially
+                        />
+                        {it.itemOut &&
+                          (!it.itemRectificationDetails ||
+                            it.itemRectificationDetails.trim() === "") && (
+                            <div
+                              style={{
+                                fontSize: "0.75rem",
+                                color: "#ff6b6b",
+                                marginTop: "2px",
+                              }}
+                            >
+                              ⚠️ Rectification details required for Item Out
+                            </div>
+                          )}
+                      </td>
+                      <td>
+                        <input
+                          type="text"
+                          className={styles.control}
+                          placeholder="Handed over to"
+                          value={it.handedOverTo || ""}
+                          onChange={(e) => updateHandedOverTo(idx, e.target.value)}
+                          disabled={!it.itemOut}
+                        />
+                        {it.itemOut && (!it.handedOverTo || it.handedOverTo.trim() === "") && (
+                          <div style={{ fontSize: "0.75rem", color: "#ff6b6b" }}>
+                            ⚠️ Required for Item Out
                           </div>
                         )}
-                    </td>
-                     <td>
-                      <input
-                        type="text"
-                        className={styles.control}
-                        placeholder="Handed over to"
-                        value={it.handedOverTo || ""}
-                        onChange={(e) => updateHandedOverTo(idx, e.target.value)}
-                        disabled={!it.itemOut}
-                      />
-                      {it.itemOut && (!it.handedOverTo || it.handedOverTo.trim() === "") && (
-                        <div style={{ fontSize: "0.75rem", color: "#ff6b6b" }}>
-                          ⚠️ Required for Item Out
-                        </div>
-                      )}
-                    </td>
-                    <td>
-                      <textarea
-                        className={styles.control}
-                        value={it.itemFeedback1Details || ""}
-                        onChange={(e) => updateFeedback1Details(idx, e.target.value)}
-                        rows={1} // looks like an input initially
-                      />
-                    </td>
-                    <td>
-                      <textarea
-                        className={styles.control}
-                        value={it.itemFeedback2Details || ""}
-                        onChange={(e) => updateFeedback2Details(idx, e.target.value)}
-                        rows={1} // looks like an input initially
-                      />
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td>
+                        <textarea
+                          className={styles.control}
+                          value={it.itemFeedback1Details || ""}
+                          onChange={(e) => updateFeedback1Details(idx, e.target.value)}
+                          rows={1} // looks like an input initially
+                        />
+                      </td>
+                      <td>
+                        <textarea
+                          className={styles.control}
+                          value={it.itemFeedback2Details || ""}
+                          onChange={(e) => updateFeedback2Details(idx, e.target.value)}
+                          rows={1} // looks like an input initially
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -2363,7 +2366,15 @@ function EditPage() {
       console.log('Fetched record data:', data);
       console.log('Items in fetched record:', data.items);
       setDoc(data);
-      setPrevData(data); // Store original data for change detection
+      const fixedItems = (data.items || []).map(item => {
+        if (item.itemOut === true && item.rfc === undefined) {
+          return { ...item, rfc: true };
+        }
+        return item;
+      });
+      const fixedData = { ...data, items: fixedItems };
+      setDoc(fixedData);
+      setPrevData(fixedData);
       setIsEditing(false); // Reset to readonly mode when fetching new record
     } catch (err) {
       console.error('Error fetching record:', err);
@@ -2456,9 +2467,16 @@ function EditPage() {
       return;
     }
 
-    const invalidOutItems = doc.items.filter(
-      item => item.itemOut && !item.rfc
-    );
+    const invalidOutItems = doc.items.filter((item, idx) => {
+      const prevItem = prevData.items?.[idx];
+
+      // Validate only if itemOut is newly checked
+      return (
+        item.itemOut &&
+        !item.rfc &&
+        (!prevItem || prevItem.itemOut !== true)
+      );
+    });
 
     if (invalidOutItems.length > 0) {
       alert('Item Out can be marked only after RFC');
@@ -2619,126 +2637,131 @@ function EditPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {doc?.items?.map((it, idx) => (
-                    <tr key={idx}>
-                      <td>
-                        <select
-                          className={styles.control}
-                          value={it.equipmentType || ''}
-                          onFocus={() => fetchItemTypeOptions(idx)}
-                          onChange={e => updateItem(idx, 'equipmentType', e.target.value)}
-                        >
-                          <option value="">SELECT TYPE</option>
-                          {it.itemTypeOptions?.map((t, i) => <option key={i} value={t}>{t}</option>)}
-                        </select>
-                      </td>
-                      <td>
-                        <select
-                          className={styles.control}
-                          value={it.itemName || ''}
-                          onFocus={() => fetchItemNameOptions(idx, it.equipmentType)}
-                          onChange={e => updateItem(idx, 'itemName', e.target.value)}
-                        >
-                          <option value="">SELECT NAME</option>
-                          {it.itemNameOptions?.map((n, i) => <option key={i} value={n}>{n}</option>)}
-                        </select>
-                      </td>
-                      <td>
-                        <select
-                          className={styles.control}
-                          value={it.partNumber || ''}
-                          onFocus={() => fetchPartNoOptions(idx, it.equipmentType, it.itemName)}
-                          onChange={e => updateItem(idx, 'partNumber', e.target.value)}
-                        >
-                          <option value="">SELECT PART</option>
-                          {it.partNoOptions?.map((p, i) => <option key={i} value={p}>{p}</option>)}
-                        </select>
-                      </td>
-                      <td><input className={styles.control} value={(it.serialNumber || '').toUpperCase()} onChange={(e) => updateItem(idx, 'serialNumber', e.target.value)} readOnly={!isEditing} required /></td>
-                      <td><input className={styles.control} value={it.defectDetails || ''} onChange={(e) => updateItem(idx, 'defectDetails', e.target.value)} readOnly={!isEditing} /></td>
-                      <td style={{ textAlign: 'center' }}><input type="checkbox" checked={!!it.itemOut} onChange={(e) => updateItem(idx, 'itemOut', e.target.checked)} disabled={!isEditing || !it.rfc} /></td>
-                      <td style={{ textAlign: 'center' }}>
-                        <input
-                          type="checkbox"
-                          checked={!!it.rfc}
-                          onChange={(e) => updateItem(idx, 'rfc', e.target.checked)}
-                          disabled={!isEditing || it.itemOut}  
-                        />
-                      </td>
-                      <td>
-                        <input 
-                          type="date" 
-                          className={styles.control} 
-                          value={it.dateOut || ''} 
-                          onChange={(e) => updateItem(idx, 'dateOut', e.target.value)}
-                          readOnly={!isEditing}
-                        />
-                        {!it.dateOut && <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '2px' }}>NO DATE SET</div>}
-                        {it.itemOut && !it.dateOut && <div style={{ fontSize: '0.75rem', color: '#ff6b6b', marginTop: '2px' }}>⚠️ DATE REQUIRED FOR ITEM OUT</div>}
-                      </td>
-                      <td>
-                          <textarea
+                  {doc?.items?.map((it, idx) => {
+                    const prevItem = prevData.items?.[idx] || {};
+                    const rfcLocked = prevItem.rfc === true;
+                    const itemOutLocked = prevItem.itemOut === true;
+                    return (
+                      <tr key={idx}>
+                        <td>
+                          <select
                             className={styles.control}
-                            value={it.itemRectificationDetails || ""}
-                            onChange={(e) => updateItem(idx, 'itemRectificationDetails', e.target.value)}
-                            readOnly={!isEditing}
-                            rows={1} // looks like an input initially
-                          />
-                          {it.itemOut &&
-                            (!it.itemRectificationDetails ||
-                              it.itemRectificationDetails.trim() === "") && (
-                              <div
-                                style={{
-                                  fontSize: "0.75rem",
-                                  color: "#ff6b6b",
-                                  marginTop: "2px",
-                                }}
-                              >
-                                ⚠️ Rectification details required for Item Out
-                              </div>
-                          )}
-                      </td>
-                      <td>
-                        <textarea
-                            className={styles.control}
-                            value={it.itemFeedback1Details || ""}
-                            onChange={(e) => updateItem(idx, 'itemFeedback1Details', e.target.value)}
-                            readOnly={!isEditing}
-                            rows={1} // looks like an input initially
-                          />
-                      </td>
-                      <td>
-                        <textarea
-                            className={styles.control}
-                            value={it.itemFeedback2Details || ""}
-                            onChange={(e) => updateItem(idx, 'itemFeedback2Details', e.target.value)}
-                            readOnly={!isEditing}
-                            rows={1} // looks like an input initially
-                          />
-                      </td>
-                      {isEditing && (
-                        <td style={{ textAlign: 'center', minWidth: '100px', whiteSpace: 'nowrap' }}>
-                          <button 
-                            type="button" 
-                            className={`${styles.btn} ${styles.btnGhost}`} 
-                            onClick={() => duplicateItem(idx)} 
-                            style={{ fontSize: '0.85rem', padding: '6px 12px', marginRight: 4 }}
+                            value={it.equipmentType || ''}
+                            onFocus={() => fetchItemTypeOptions(idx)}
+                            onChange={e => updateItem(idx, 'equipmentType', e.target.value)}
                           >
-                            DUPLICATE
-                          </button>
-                          <button 
-                            type="button" 
-                            className={`${styles.btn} ${styles.btnDanger}`} 
-                            onClick={() => deleteItem(idx)} 
-                            disabled={doc?.items.length === 1}
-                            style={{ fontSize: '0.85rem', padding: '6px 12px' }}
-                          >
-                            DELETE
-                          </button>
+                            <option value="">SELECT TYPE</option>
+                            {it.itemTypeOptions?.map((t, i) => <option key={i} value={t}>{t}</option>)}
+                          </select>
                         </td>
-                      )}
-                    </tr>
-                  ))}
+                        <td>
+                          <select
+                            className={styles.control}
+                            value={it.itemName || ''}
+                            onFocus={() => fetchItemNameOptions(idx, it.equipmentType)}
+                            onChange={e => updateItem(idx, 'itemName', e.target.value)}
+                          >
+                            <option value="">SELECT NAME</option>
+                            {it.itemNameOptions?.map((n, i) => <option key={i} value={n}>{n}</option>)}
+                          </select>
+                        </td>
+                        <td>
+                          <select
+                            className={styles.control}
+                            value={it.partNumber || ''}
+                            onFocus={() => fetchPartNoOptions(idx, it.equipmentType, it.itemName)}
+                            onChange={e => updateItem(idx, 'partNumber', e.target.value)}
+                          >
+                            <option value="">SELECT PART</option>
+                            {it.partNoOptions?.map((p, i) => <option key={i} value={p}>{p}</option>)}
+                          </select>
+                        </td>
+                        <td><input className={styles.control} value={(it.serialNumber || '').toUpperCase()} onChange={(e) => updateItem(idx, 'serialNumber', e.target.value)} readOnly={!isEditing} required /></td>
+                        <td><input className={styles.control} value={it.defectDetails || ''} onChange={(e) => updateItem(idx, 'defectDetails', e.target.value)} readOnly={!isEditing} /></td>
+                        <td style={{ textAlign: 'center' }}><input type="checkbox" checked={!!it.itemOut} onChange={(e) => updateItem(idx, 'itemOut', e.target.checked)} disabled={!isEditing || itemOutLocked || (!it.rfc && !it.itemOut)} /></td>
+                        <td style={{ textAlign: 'center' }}>
+                          <input
+                            type="checkbox"
+                            checked={!!it.rfc}
+                            onChange={(e) => updateItem(idx, 'rfc', e.target.checked)}
+                            disabled={!isEditing || rfcLocked || itemOutLocked}  
+                          />
+                        </td>
+                        <td>
+                          <input 
+                            type="date" 
+                            className={styles.control} 
+                            value={it.dateOut || ''} 
+                            onChange={(e) => updateItem(idx, 'dateOut', e.target.value)}
+                            readOnly={!isEditing}
+                          />
+                          {!it.dateOut && <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '2px' }}>NO DATE SET</div>}
+                          {it.itemOut && !it.dateOut && <div style={{ fontSize: '0.75rem', color: '#ff6b6b', marginTop: '2px' }}>⚠️ DATE REQUIRED FOR ITEM OUT</div>}
+                        </td>
+                        <td>
+                            <textarea
+                              className={styles.control}
+                              value={it.itemRectificationDetails || ""}
+                              onChange={(e) => updateItem(idx, 'itemRectificationDetails', e.target.value)}
+                              readOnly={!isEditing}
+                              rows={1} // looks like an input initially
+                            />
+                            {it.itemOut &&
+                              (!it.itemRectificationDetails ||
+                                it.itemRectificationDetails.trim() === "") && (
+                                <div
+                                  style={{
+                                    fontSize: "0.75rem",
+                                    color: "#ff6b6b",
+                                    marginTop: "2px",
+                                  }}
+                                >
+                                  ⚠️ Rectification details required for Item Out
+                                </div>
+                            )}
+                        </td>
+                        <td>
+                          <textarea
+                              className={styles.control}
+                              value={it.itemFeedback1Details || ""}
+                              onChange={(e) => updateItem(idx, 'itemFeedback1Details', e.target.value)}
+                              readOnly={!isEditing}
+                              rows={1} // looks like an input initially
+                            />
+                        </td>
+                        <td>
+                          <textarea
+                              className={styles.control}
+                              value={it.itemFeedback2Details || ""}
+                              onChange={(e) => updateItem(idx, 'itemFeedback2Details', e.target.value)}
+                              readOnly={!isEditing}
+                              rows={1} // looks like an input initially
+                            />
+                        </td>
+                        {isEditing && (
+                          <td style={{ textAlign: 'center', minWidth: '100px', whiteSpace: 'nowrap' }}>
+                            <button 
+                              type="button" 
+                              className={`${styles.btn} ${styles.btnGhost}`} 
+                              onClick={() => duplicateItem(idx)} 
+                              style={{ fontSize: '0.85rem', padding: '6px 12px', marginRight: 4 }}
+                            >
+                              DUPLICATE
+                            </button>
+                            <button 
+                              type="button" 
+                              className={`${styles.btn} ${styles.btnDanger}`} 
+                              onClick={() => deleteItem(idx)} 
+                              disabled={doc?.items.length === 1}
+                              style={{ fontSize: '0.85rem', padding: '6px 12px' }}
+                            >
+                              DELETE
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
               {isEditing && (
