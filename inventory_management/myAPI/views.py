@@ -1015,7 +1015,8 @@ def search_download(request):
             
             for item in items:
                 # Determine status: OUT if both itemIn and itemOut are true, else IN
-                status = "OUT" if item.get("itemIn") and item.get("itemRfc") and item.get("itemOut") else "IN"
+                status = "OUT" if item.get("itemIn") and item.get("itemOut") else "IN"
+                status = "RFC" if item.get("itemIn") and item.get("itemRfc") and not item.get("itemOut") else status
                 
                 # Format phone number properly (remove scientific notation)
                 phone = customer.get("phone", "")
