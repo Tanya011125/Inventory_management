@@ -12,6 +12,7 @@ urlpatterns = [
     path('items/in', views.items_in),  # POST /api/items/in
     path('items/<str:pass_no>', views.edit_record),  # GET/PUT/DELETE /api/items/:passNo
     path('items/out/<str:pass_no>', views.update_item_out),  # PUT /api/items/out/:passNo
+    path('items/rfc/<str:pass_no>', views.update_item_rfc),  # PUT /api/items/rfc/:passNo
 
     # search
     path('search', views.search),  # GET /api/search
