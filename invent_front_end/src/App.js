@@ -2075,7 +2075,7 @@ function SearchPage() {
                 const items = doc.items || [];
                 return items.map((item, itemIndex) => {
                   // Determine status: OUT if all itemIn, itemRfc, and itemOut are true, else IN
-                  const status = item.itemIn && item.itemRfc && item.itemOut ? "OUT" : item.itemIn && item.itemRfc && !item.itemOut ? "RFC" : "IN";
+                  const status = item.itemIn && item.itemOut ? "OUT" : item.itemIn && item.itemRfc && !item.itemOut ? "RFC" : "IN";
                   
                   // Format phone number properly
                   const phone = doc.customer?.phone || "";

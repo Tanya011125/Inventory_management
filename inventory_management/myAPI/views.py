@@ -864,7 +864,7 @@ def _filter_serial(items, serial_substring=None, status=None):
             continue
         if status == "RFC" and not (item.get("itemIn") and item.get("itemRfc") and not item.get("itemOut")):
             continue
-        if status == "Out" and not (item.get("itemIn") and item.get("itemRfc") and item.get("itemOut")):
+        if status == "Out" and not (item.get("itemIn") and item.get("itemOut")):
             continue
 
         filtered.append(item)
@@ -886,7 +886,7 @@ def _filter_items(items, part_number=None, status=None):
         if status == "RFC" and not (item.get("itemIn") and item.get("itemRfc") and not item.get("itemOut")):
             continue
 
-        if status == "Out" and not (item.get("itemIn") and item.get("itemRfc") and item.get("itemOut")):
+        if status == "Out" and not (item.get("itemIn") and item.get("itemOut")):
             continue
 
         filtered.append(item)
