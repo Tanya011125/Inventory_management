@@ -522,8 +522,13 @@ def items_in(request):
         log_api_response("items_in", request.method, getattr(request, 'body', None), {**error_response, "stack_trace": stack_trace})
         return JsonResponse(error_response, status=500)
 
-
 def get_item_by_passno(request, pass_no):
+    if not pass_no:
+        print("Enter a pass number")  # <--- your print statement
+        error_response = {"error": "passNo cannot be empty"}
+        log_api_response("get_item_by_passno", request.method, {"passNo": pass_no}, error_response)
+        return JsonResponse(error_response, status=400)
+    
     if request.method != "GET":
         error_response = {"error": "Only GET allowed"}
         log_api_response("get_item_by_passno", request.method, {"passNo": pass_no}, error_response)
@@ -537,6 +542,7 @@ def get_item_by_passno(request, pass_no):
             response = {"error": "Not found"}
             log_api_response("get_item_by_passno", request.method, {"passNo": pass_no}, response)
             return JsonResponse(response, status=404)
+        
         log_api_response("get_item_by_passno", request.method, {"passNo": pass_no}, doc)
         return JsonResponse(doc, safe=False)
     except Exception as e:
@@ -545,6 +551,96 @@ def get_item_by_passno(request, pass_no):
         log_api_response("get_item_by_passno", request.method, {"passNo": pass_no}, {**error_response, "stack_trace": stack_trace})
         return JsonResponse(error_response, status=500)
 
+@csrf_exempt
+def update_item_rfc(request, pass_no):
+    if request.method != "PUT":
+        error_response = {"error": "Only PUT allowed"}
+        log_api_response("update_item_rfc", request.method, {"passNo": pass_no}, error_response)
+        return JsonResponse(error_response, status=405)
+    user, err = require_auth(request)
+    if err:
+        return err
+    try:
+        print(f"=== ITEM RFC UPDATE DEBUG ===")
+        print(f"Pass Number: {pass_no}")
+        print(f"User: {user.get('username')}")
+        print(f"Request body: {request.body}")
+
+        body = json.loads(request.body or b"{}")
+        updates = body.get("items") or []
+
+        print(f"Parsed body: {body}")
+        print(f"Updates array: {updates}")
+
+        doc = collection.find_one({"passNo": pass_no})
+        if not doc:
+            response = {"error": "Not found"}
+            log_api_response("update_item_rfc", request.method, {"passNo": pass_no}, response)
+            return JsonResponse(response, status=404)
+        
+        print(f"Found document: {doc.get('passNo')}")
+        print(f"Original items: {doc.get('items')}")
+
+        # Check if we have the same number of items
+        original_items = doc.get("items", [])
+        if len(updates) != len(original_items):
+            response = {"error": f"Number of items mismatch. Expected {len(original_items)}, got {len(updates)}"}
+            return JsonResponse(response, status=400)
+
+        print(f"DEBUG: Received updates: {updates}")
+
+        # Update items by position (index) instead of serial number
+        new_items = []
+        for i, (original_item, update_item) in enumerate(zip(original_items, updates)):
+            print(f"Processing item {i}: original={original_item.get('serialNumber')}, update={update_item.get('serialNumber')}")
+
+            # Create updated item
+            updated_item = original_item.copy()
+            updated_item["itemRfc"] = bool(update_item.get("itemRfc", False))
+
+            # Prevent RFC being unset for itemOut items
+            if original_item.get("itemOut") is True:
+                updated_item["itemRfc"] = True
+
+            # Handle dateRfc
+            if updated_item["itemRfc"]:
+                if update_item.get("dateRfc"):
+                    updated_item["dateRfc"] = update_item["dateRfc"]
+                elif not original_item.get("dateRfc"):
+                    updated_item["dateRfc"] = datetime.now(ZoneInfo("Asia/Kolkata")).date().isoformat()
+                    print(f"DEBUG: Auto-setting dateRfc for item {i} to {updated_item['dateRfc']}")
+            else:
+                updated_item["dateRfc"] = None
+                print(f"DEBUG: Clearing dateRfc for item {i} since itemRfc is False")
+
+            # Handle rectification details
+            if "itemRectificationDetails" in update_item:
+                updated_item["itemRectificationDetails"] = update_item["itemRectificationDetails"] or ""
+
+            if "itemFeedback1Details" in update_item:
+                updated_item["itemFeedback1Details"] = update_item["itemFeedback1Details"] or ""
+
+            if "itemFeedback2Details" in update_item:
+                updated_item["itemFeedback2Details"] = update_item["itemFeedback2Details"] or ""
+            
+            print(f"Updated item {i}: {updated_item}")
+            new_items.append(updated_item)    
+
+        print(f"Final items array: {new_items}")
+
+        result = collection.update_one({"passNo": pass_no}, {"$set": {"items": new_items, "updatedAt": datetime.now(ZoneInfo("Asia/Kolkata")), "updatedBy": user.get("username")}})
+        print(f"Update result: matched={result.matched_count}, modified={result.modified_count}")
+
+        response = {"message": "RFC statuses updated"}
+        log_api_response("update_item_rfc", request.method, {"passNo": pass_no, "updates_count": len(updates)}, response)
+        return JsonResponse(response)
+    except Exception as e:
+        print(f"ERROR in update_item_rfc: {str(e)}")
+        print(f"Traceback: {traceback.format_exc()}")
+        stack_trace = traceback.format_exc()
+        error_response = {"error": str(e)}
+        log_api_response("update_item_rfc", request.method, {"passNo": pass_no}, {**error_response, "stack_trace": stack_trace})
+        return JsonResponse(error_response, status=500)
 
 @csrf_exempt
 def update_item_out(request, pass_no):
@@ -593,6 +689,12 @@ def update_item_out(request, pass_no):
             updated_item = original_item.copy()
             updated_item["itemOut"] = bool(update_item.get("itemOut", False))
             
+            if not original_item.get("itemRfc"):
+                updated_item["itemOut"] = False
+
+            if original_item.get("itemOut") is True:
+                updated_item["itemOut"] = True
+
             # Handle dateOut
             if updated_item["itemOut"]:
                 if update_item.get("dateOut"):
@@ -633,7 +735,6 @@ def update_item_out(request, pass_no):
         log_api_response("update_item_out", request.method, {"passNo": pass_no}, {**error_response, "stack_trace": stack_trace})
         return JsonResponse(error_response, status=500)
 
-
 @csrf_exempt
 def edit_record(request, pass_no):
     user, err = require_auth(request)
@@ -664,6 +765,8 @@ def edit_record(request, pass_no):
                     item["itemIn"] = True  # Always true when item is entered
                     if "dateOut" not in item:
                         item["dateOut"] = None
+                    if "dateRfc" not in item:
+                        item["dateRfc"] = None
                     if "itemRectificationDetails" not in item:
                         item["itemRectificationDetails"] = ""
                     if "itemFeedback1Details" not in item:
@@ -757,10 +860,11 @@ def _filter_serial(items, serial_substring=None, status=None):
             continue
 
         # 🔹 Status filter (optional)
-        if status == "In" and not (item.get("itemIn") and not item.get("itemOut")):
+        if status == "In" and not (item.get("itemIn") and not item.get("itemOut") and not item.get("itemRfc")):
             continue
-
-        if status == "Out" and not (item.get("itemIn") and item.get("itemOut")):
+        if status == "RFC" and not (item.get("itemIn") and item.get("itemRfc") and not item.get("itemOut")):
+            continue
+        if status == "Out" and not (item.get("itemIn") and item.get("itemRfc") and item.get("itemOut")):
             continue
 
         filtered.append(item)
@@ -776,9 +880,13 @@ def _filter_items(items, part_number=None, status=None):
             continue
 
         # Status filter
-        if status == "In" and not (item.get("itemIn") and not item.get("itemOut")):
+        if status == "In" and not (item.get("itemIn") and not item.get("itemOut") and not item.get("itemRfc")):
             continue
-        if status == "Out" and not (item.get("itemIn") and item.get("itemOut")):
+
+        if status == "RFC" and not (item.get("itemIn") and item.get("itemRfc") and not item.get("itemOut")):
+            continue
+
+        if status == "Out" and not (item.get("itemIn") and item.get("itemRfc") and item.get("itemOut")):
             continue
 
         filtered.append(item)
@@ -831,7 +939,7 @@ def search(request):
                 filtered_items = _filter_serial(filtered_items, serial_substring=search_value, status=status)
             elif search_type == "ItemPartNo" and search_value:
                 filtered_items = _filter_items(filtered_items, part_number=search_value, status=status)
-            elif status in ("In", "Out"):
+            elif status in ("In", "RFC", "Out"):
                 filtered_items = _filter_items(filtered_items, status=status)
 
             for item in filtered_items:
@@ -877,7 +985,7 @@ def search_download(request):
             "Sl No.","Pass No", "Project Name", 
             "Customer Name", "Customer Unit Address", "Customer Location", "Customer Phone",
             "Equipment Type", "Item Name", "Part Number", "Serial Number", "Defect Details", 
-            "Status", "Date In", "Date Out", "Item Rectification Details", "Feedback 1 details", "Feedback 2 details", "CreatedBy", "updatedBy"
+            "Status", "Date In", "Date RFC", "Date Out", "Item Rectification Details", "Feedback 1 details", "Feedback 2 details", "CreatedBy", "updatedBy"
         ])
         
         # Write data rows - one row per item
@@ -897,7 +1005,7 @@ def search_download(request):
                 items = _filter_serial(items, serial_substring=search_value, status=status)
             elif search_type == "ItemPartNo" and search_value:
                 items = _filter_items(items, part_number = search_value, status=status)
-            elif status in ("In", "Out"):
+            elif status in ("In", "RFC", "Out"):
                 items = _filter_items(items, status=status)
 
             # Filter items by part number if searching by part number
@@ -907,7 +1015,7 @@ def search_download(request):
             
             for item in items:
                 # Determine status: OUT if both itemIn and itemOut are true, else IN
-                status = "OUT" if item.get("itemIn") and item.get("itemOut") else "IN"
+                status = "OUT" if item.get("itemIn") and item.get("itemRfc") and item.get("itemOut") else "IN"
                 
                 # Format phone number properly (remove scientific notation)
                 phone = customer.get("phone", "")
@@ -915,6 +1023,15 @@ def search_download(request):
                     phone = str(phone)
                 
                 # Format date properly for Excel
+                date_rfc = item.get("dateRfc", "")
+                if date_rfc:
+                    # Ensure date is in YYYY-MM-DD format
+                    try:
+                        if isinstance(date_rfc, str):
+                            date_rfc = date_rfc[:10]  # Take first 10 characters
+                    except:
+                        date_rfc = ""
+
                 date_out = item.get("dateOut", "")
                 if date_out:
                     # Ensure date is in YYYY-MM-DD format
@@ -923,7 +1040,7 @@ def search_download(request):
                             date_out = date_out[:10]  # Take first 10 characters
                     except:
                         date_out = ""
-                
+
                 writer.writerow([
                     serial_no,
                     pass_no,
@@ -939,6 +1056,7 @@ def search_download(request):
                     item.get("defectDetails", ""),
                     status,
                     date_in,
+                    date_rfc,
                     date_out,
                     item.get("itemRectificationDetails", ""),
                     item.get("itemFeedback1Details", ""),
