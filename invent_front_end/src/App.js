@@ -207,9 +207,9 @@ function Dashboard() {
               <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/item-in">OPEN</Link>
             </div>
             <div className={styles.card}>
-              <div className={styles.cardTitle}>RFC</div>
+              <div className={styles.cardTitle}>RFD</div>
               <div className={styles.cardDesc}>Mark items as ready for a given pass number.</div>
-              <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/rfc">OPEN</Link>
+              <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/rfd">OPEN</Link>
             </div>
             <div className={styles.card}>
               <div className={styles.cardTitle}>ITEM OUT</div>
@@ -735,7 +735,7 @@ const fetchPartNoOptions = async (idx, equipmentType, itemName) => {
   );
 }
 
-function RFCPage() {
+function RFDPage() {
   const [passNo, setPassNo] = useState('');
   const [record, setRecord] = useState(null);
   const [projectOptions, setProjectOptions] = useState([]);
@@ -824,20 +824,20 @@ function RFCPage() {
     }
   };
 
-  const updateRfc = (idx, value) => {
+  const updateRfd = (idx, value) => {
     setRecord((prev) => {
       const newItems = prev.items.map((it, i) => {
         if (i === idx) {
-          const updatedItem = { ...it, itemRfc: value };
+          const updatedItem = { ...it, itemRfd: value };
 
-          // Auto-set dateOut when itemRfc is checked and no dateRfc exists
-          if (value === true && (!updatedItem.dateRfc || updatedItem.dateRfc === '')) {
-            updatedItem.dateRfc = new Date().toISOString().slice(0, 10);
+          // Auto-set dateOut when itemRfd is checked and no dateRfd exists
+          if (value === true && (!updatedItem.dateRfd || updatedItem.dateRfd === '')) {
+            updatedItem.dateRfd = new Date().toISOString().slice(0, 10);
           }
-          // Clear dateRfc when itemRfc is unchecked
+          // Clear dateRfd when itemRfd is unchecked
           else if (value === false) {
-            console.log(`Clearing dateRfc for item ${idx} since itemRfc is now false`);
-            updatedItem.dateRfc = null;
+            console.log(`Clearing dateRfd for item ${idx} since itemRfd is now false`);
+            updatedItem.dateRfd = null;
           }
           return updatedItem;
         }
@@ -848,13 +848,13 @@ function RFCPage() {
     });
   };
 
-  const updateDateRfc = (idx, value) => {
-    console.log(`Updating dateRfc for item ${idx} to:`, value);
+  const updateDateRfd = (idx, value) => {
+    console.log(`Updating dateRfd for item ${idx} to:`, value);
     setRecord((prev) => {
       const newItems = prev.items.map((it, i) => {
         if (i === idx) {
           console.log(`Item ${idx} before update:`, it);
-          const updatedItem = { ...it, dateRfc: value };
+          const updatedItem = { ...it, dateRfd: value };
           console.log(`Item ${idx} after update:`, updatedItem);
           return updatedItem;
         }
@@ -880,17 +880,17 @@ function RFCPage() {
   const onSubmit = async () => {
     if (!record) return;
 
-    // Validate that all items marked as "rfc" have a date
-    const itemsWithoutDate = record.items.filter(item => item.itemRfc && (!item.dateRfc || item.dateRfc === ''));
+    // Validate that all items marked as "rfd" have a date
+    const itemsWithoutDate = record.items.filter(item => item.itemRfd && (!item.dateRfd || item.dateRfd === ''));
     if (itemsWithoutDate.length > 0) {
-      alert('Please set a date for all items marked as "RFC"');
+      alert('Please set a date for all items marked as "RFD"');
       return;
     }
 
-    // Validate that all items marked as "rfc" have rectification details
-    const itemsWithoutDetails = record.items.filter(item => item.itemRfc && (!item.itemRectificationDetails || item.itemRectificationDetails.trim() === ''));
+    // Validate that all items marked as "rfd" have rectification details
+    const itemsWithoutDetails = record.items.filter(item => item.itemRfd && (!item.itemRectificationDetails || item.itemRectificationDetails.trim() === ''));
     if (itemsWithoutDetails.length > 0) {
-      alert('Please enter rectification details for all items marked as "RFC"');
+      alert('Please enter rectification details for all items marked as "RFD"');
       return;
     }
 
@@ -906,21 +906,21 @@ function RFCPage() {
       // This ensures the backend can match items by position, avoiding issues with duplicate serial numbers
       const updates = record.items.map((it) => ({ 
         serialNumber: it.serialNumber, 
-        itemRfc: !!it.itemRfc, 
-        dateRfc: it.dateRfc || null, 
+        itemRfd: !!it.itemRfd, 
+        dateRfd: it.dateRfd || null, 
         itemRectificationDetails: it.itemRectificationDetails || '',
         itemFeedback1Details: it.itemFeedback1Details || '',
         itemFeedback2Details: it.itemFeedback2Details || ''
       }));
 
-      console.log('=== RFC SUBMISSION DEBUG ===');
+      console.log('=== RFD SUBMISSION DEBUG ===');
       console.log('Pass Number:', record.passNo);
       console.log('Original record items:', record.items);
       console.log('Submitting updates:', updates);
-      console.log('Request URL:', `${apiBase()}/items/rfc/${encodeURIComponent(record.passNo)}`);
+      console.log('Request URL:', `${apiBase()}/items/rfd/${encodeURIComponent(record.passNo)}`);
       console.log('Request payload:', JSON.stringify({ items: updates }, null, 2));
 
-      const res = await fetch(`${apiBase()}/items/rfc/${encodeURIComponent(record.passNo)}`, {
+      const res = await fetch(`${apiBase()}/items/rfd/${encodeURIComponent(record.passNo)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ items: updates })
@@ -938,7 +938,7 @@ function RFCPage() {
       setStatus('Updated');
       clearForm();
     } catch (err) {
-      console.error('Error in ItemRFC submission:', err);
+      console.error('Error in ItemRFD submission:', err);
       alert(`Error: ${err.message}`);
       setStatus(`Error: ${err.message}`);
     }
@@ -947,7 +947,7 @@ function RFCPage() {
   return(
     <div className={styles.page} style={{ height: 'calc(100vh - 10px)', overflow: 'auto' }}>
       <div className={styles.pageHeader}>
-        <div className={styles.pageTitle}>RFC</div>
+        <div className={styles.pageTitle}>RFD</div>
         <div className={styles.pageActions}>
           <button className={`${styles.btn} ${styles.btnGhost}`} onClick={() => {navigate('/user/dashboard'); clearForm()}}>CLOSE</button>
         </div>
@@ -981,7 +981,7 @@ function RFCPage() {
         </div>
       </div> 
       {record ? (
-        <div className={styles.cardRFC} style={{ marginTop: 12 }}>
+        <div className={styles.cardRFD} style={{ marginTop: 12 }}>
           <div className={styles.formGrid3}>
             <div><b>PRIVATE PASS NO:</b> {record.passNo}</div>
             <div><b>DATE IN:</b> {record.dateIn}</div>
@@ -995,7 +995,7 @@ function RFCPage() {
             <table className={styles.table} style={{ minWidth: 900 }}>
               <thead>
                 <tr>
-                  <th>TYPE</th><th>NAME</th><th>PART NO</th><th>SERIAL NO</th><th>DEFECT</th><th>RFC</th><th>RFC DATE</th><th>RECTIFICATION DETAILS</th><th>REMARKS 1</th><th>REMARKS 2</th>
+                  <th>TYPE</th><th>NAME</th><th>PART NO</th><th>SERIAL NO</th><th>DEFECT</th><th>RFD</th><th>RFD DATE</th><th>RECTIFICATION DETAILS</th><th>REMARKS 1</th><th>REMARKS 2</th>
                 </tr>
               </thead>
               <tbody>
@@ -1007,27 +1007,27 @@ function RFCPage() {
                     <td>{it.serialNumber}</td>
                     <td>{it.defectDetails}</td>
                     {/* <td><input type="checkbox" checked={!!it.itemIn} readOnly /></td> */}
-                    <td><input type="checkbox" checked={!!it.itemRfc} disabled={it.itemOut === true} onChange={(e) => updateRfc(idx, e.target.checked)} /></td>
+                    <td><input type="checkbox" checked={!!it.itemRfd} disabled={it.itemOut === true} onChange={(e) => updateRfd(idx, e.target.checked)} /></td>
                     <td>
                       <input 
                         type="date" 
                         className={styles.control} 
-                        value={it.dateRfc || ''} 
-                        onChange={(e) => updateDateRfc(idx, e.target.value)}
+                        value={it.dateRfd || ''} 
+                        onChange={(e) => updateDateRfd(idx, e.target.value)}
                         placeholder="SELECT DATE"
                       />
-                      {!it.dateRfc && <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '2px' }}>NO DATE SET</div>}
-                      {it.itemRfc && !it.dateRfc && <div style={{ fontSize: '0.75rem', color: '#ff6b6b', marginTop: '2px' }}>⚠️ DATE REQUIRED FOR RFC</div>}
+                      {!it.dateRfd && <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '2px' }}>NO DATE SET</div>}
+                      {it.itemRfd && !it.dateRfd && <div style={{ fontSize: '0.75rem', color: '#ff6b6b', marginTop: '2px' }}>⚠️ DATE REQUIRED FOR RFD</div>}
                     </td>
                     <td>
                       <textarea
                         className={styles.control}
                         value={it.itemRectificationDetails || ""}
                         onChange={(e) => updateRectificationDetails(idx, e.target.value)}
-                        required={it.itemRfc}
+                        required={it.itemRfd}
                         rows={1} // looks like an input initially
                       />
-                      {it.itemRfc &&
+                      {it.itemRfd &&
                         (!it.itemRectificationDetails ||
                           it.itemRectificationDetails.trim() === "") && (
                           <div
@@ -1037,7 +1037,7 @@ function RFCPage() {
                               marginTop: "2px",
                             }}
                           >
-                            ⚠️ Rectification details required for RFC
+                            ⚠️ Rectification details required for RFD
                           </div>
                         )}
                     </td>
@@ -1361,7 +1361,7 @@ function ItemOutPage() {
               </thead>
               <tbody>
                 {record.items?.map((it, idx) => {
-                  const rowDisabled = !it.itemRfc;
+                  const rowDisabled = !it.itemRfd;
                   // Disable only if it was ALREADY itemOut=true in the ORIGINAL DB state (before user edits)
                   const itemOutLocked = originalRecord?.items?.[idx]?.itemOut === true;
                   return (
@@ -2061,7 +2061,7 @@ function SearchPage() {
                 <th>DEFECT DETAILS</th>
                 <th>STATUS</th>
                 <th>DATE IN</th>
-                <th>DATE RFC</th>
+                <th>DATE RFD</th>
                 <th>DATE OUT</th>
                 <th>RECTIFICATION DETAILS</th>
                 <th>REMARKS 1 </th>
@@ -2074,8 +2074,8 @@ function SearchPage() {
               {result.data.map((doc, docIndex) => {
                 const items = doc.items || [];
                 return items.map((item, itemIndex) => {
-                  // Determine status: OUT if all itemIn, itemRfc, and itemOut are true, else IN
-                  const status = item.itemIn && item.itemOut ? "OUT" : item.itemIn && item.itemRfc && !item.itemOut ? "RFC" : "IN";
+                  // Determine status: OUT if all itemIn, itemRfd, and itemOut are true, else IN
+                  const status = item.itemIn && item.itemOut ? "OUT" : item.itemIn && item.itemRfd && !item.itemOut ? "RFD" : "IN";
                   
                   // Format phone number properly
                   const phone = doc.customer?.phone || "";
@@ -2083,7 +2083,7 @@ function SearchPage() {
                   
                   // Format dates
                   const dateIn = doc.dateIn || "";
-                  const dateRfc = item.dateRfc || "";
+                  const dateRfd = item.dateRfd || "";
                   const dateOut = item.dateOut || "";
                   
                   return (
@@ -2102,7 +2102,7 @@ function SearchPage() {
                       <td>{item.defectDetails || ""}</td>
                       <td>{status}</td>
                       <td>{dateIn}</td>
-                      <td>{dateRfc}</td>
+                      <td>{dateRfd}</td>
                       <td>{dateOut}</td>
                       <td style={{textAlign: 'left'}}>{item.itemRectificationDetails || ""}</td>
                       <td style={{textAlign: 'left'}}>{item.itemFeedback1Details || ""}</td>
@@ -2186,7 +2186,7 @@ function SearchPage() {
               <option value = "All">ALL</option>
               <option value = "In">IN</option>
               <option value = "Out">OUT</option>
-              <option value = "RFC">RFC</option>
+              <option value = "RFD">RFD</option>
             </select>
           </label>
           {type === 'serialNumber' && (
@@ -2437,9 +2437,9 @@ function EditPage() {
       partNoOptions: [],
       itemIn: src.itemIn ?? true,
       itemOut: false,
-      itemRfc: false,
+      itemRfd: false,
       dateOut: null,
-      dateRfc: null
+      dateRfd: null
     };
 
     const newItems = [...items.slice(0, idx + 1), newRow, ...items.slice(idx + 1)];
@@ -2548,14 +2548,14 @@ function EditPage() {
             updatedItem.dateOut = null;
           }
 
-          // Auto-set dateRfc when itemRfc is checked and no dateRfc exists
-          if (key === 'itemRfc' && value === true && (!updatedItem.dateRfc || updatedItem.dateRfc === '')) {
-            updatedItem.dateRfc = new Date().toISOString().slice(0, 10);
+          // Auto-set dateRfd when itemRfd is checked and no dateRfd exists
+          if (key === 'itemRfd' && value === true && (!updatedItem.dateRfd || updatedItem.dateRfd === '')) {
+            updatedItem.dateRfd = new Date().toISOString().slice(0, 10);
           }
-          // Clear dateRfc when itemRfc is unchecked
-          else if (key === 'itemRfc' && value === false) {
-            console.log(`Clearing dateRfc for item ${idx} since itemRfc is now false`);
-            updatedItem.dateRfc = null;
+          // Clear dateRfd when itemRfd is unchecked
+          else if (key === 'itemRfd' && value === false) {
+            console.log(`Clearing dateRfd for item ${idx} since itemRfd is now false`);
+            updatedItem.dateRfd = null;
           }
           
           return updatedItem;
@@ -2568,7 +2568,7 @@ function EditPage() {
   };
 
   const addItem = () => {
-    setDoc((prev) => ({ ...prev, items: [...prev.items, { equipmentType: '', itemName: '', partNumber: '', serialNumber: '', defectDetails: '', itemIn: true, itemOut: false, itemRfc: false, dateOut: null, dateRfc: null, itemRectificationDetails: '', itemFeedback1Details: '', itemFeedback2Details: ''}] }));
+    setDoc((prev) => ({ ...prev, items: [...prev.items, { equipmentType: '', itemName: '', partNumber: '', serialNumber: '', defectDetails: '', itemIn: true, itemOut: false, itemRfd: false, dateOut: null, dateRfd: null, itemRectificationDetails: '', itemFeedback1Details: '', itemFeedback2Details: ''}] }));
   };
 
   const deleteItem = (idx) => {
@@ -2601,9 +2601,9 @@ function EditPage() {
       return;
     }
     
-    const itemsWithoutDetails = doc.items.filter(item => item.itemRfc && (!item.itemRectificationDetails || item.itemRectificationDetails.trim() === ''));
+    const itemsWithoutDetails = doc.items.filter(item => item.itemRfd && (!item.itemRectificationDetails || item.itemRectificationDetails.trim() === ''));
     if (itemsWithoutDetails.length > 0) {
-      alert('Please enter rectification details for all items marked as "Item RFC"');
+      alert('Please enter rectification details for all items marked as "Item RFD"');
       return;
     }
 
@@ -2750,7 +2750,7 @@ function EditPage() {
               <table className={styles.table} style={{ minWidth: '1200px' }}>
                 <thead>
                   <tr>
-                    <th>ITEM TYPE</th><th>ITEM NAME</th><th>PART NO</th><th>SERIAL NO</th><th>DEFECT</th><th>ITEMOUT</th><th>RFC</th><th>DATE OUT</th><th>DATE RFC</th><th>RECTIFICATION DETAILS</th><th>REMARKS 1 DETAILS</th><th>REMARKS 2 DETAILS</th>
+                    <th>ITEM TYPE</th><th>ITEM NAME</th><th>PART NO</th><th>SERIAL NO</th><th>DEFECT</th><th>ITEMOUT</th><th>RFD</th><th>DATE OUT</th><th>DATE RFD</th><th>RECTIFICATION DETAILS</th><th>REMARKS 1 DETAILS</th><th>REMARKS 2 DETAILS</th>
                     {isEditing && <th style={{ minWidth: '100px', textAlign: 'center' }}>Actions</th>}
                   </tr>
                 </thead>
@@ -2793,7 +2793,7 @@ function EditPage() {
                       <td><input className={styles.control} value={(it.serialNumber || '').toUpperCase()} onChange={(e) => updateItem(idx, 'serialNumber', e.target.value)} readOnly={!isEditing} required /></td>
                       <td><input className={styles.control} value={it.defectDetails || ''} onChange={(e) => updateItem(idx, 'defectDetails', e.target.value)} readOnly={!isEditing} /></td>
                       <td style={{ textAlign: 'center' }}><input type="checkbox" checked={!!it.itemOut} onChange={(e) => updateItem(idx, 'itemOut', e.target.checked)} disabled={!isEditing} /></td>
-                      <td style={{ textAlign: 'center' }}><input type="checkbox" checked={!!it.itemRfc} onChange={(e) => updateItem(idx, 'itemRfc', e.target.checked)} disabled={!isEditing} /></td>
+                      <td style={{ textAlign: 'center' }}><input type="checkbox" checked={!!it.itemRfd} onChange={(e) => updateItem(idx, 'itemRfd', e.target.checked)} disabled={!isEditing} /></td>
                       <td>
                         <input 
                           type="date" 
@@ -2809,12 +2809,12 @@ function EditPage() {
                         <input 
                           type="date" 
                           className={styles.control} 
-                          value={it.dateRfc || ''} 
-                          onChange={(e) => updateItem(idx, 'dateRfc', e.target.value)}
+                          value={it.dateRfd || ''} 
+                          onChange={(e) => updateItem(idx, 'dateRfd', e.target.value)}
                           readOnly={!isEditing}
                         />
-                        {!it.dateRfc && <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '2px' }}>NO DATE SET</div>}
-                        {it.itemRfc && !it.dateRfc && <div style={{ fontSize: '0.75rem', color: '#ff6b6b', marginTop: '2px' }}>⚠️ DATE REQUIRED FOR ITEM RFC</div>}
+                        {!it.dateRfd && <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '2px' }}>NO DATE SET</div>}
+                        {it.itemRfd && !it.dateRfd && <div style={{ fontSize: '0.75rem', color: '#ff6b6b', marginTop: '2px' }}>⚠️ DATE REQUIRED FOR ITEM RFD</div>}
                       </td>
                       <td>
                           <textarea
@@ -2824,7 +2824,7 @@ function EditPage() {
                             readOnly={!isEditing}
                             rows={1} // looks like an input initially
                           />
-                          {it.itemRfc &&
+                          {it.itemRfd &&
                             (!it.itemRectificationDetails ||
                               it.itemRectificationDetails.trim() === "") && (
                               <div
@@ -2834,7 +2834,7 @@ function EditPage() {
                                   marginTop: "2px",
                                 }}
                               >
-                                ⚠️ Rectification details required for Item RFC
+                                ⚠️ Rectification details required for Item RFD
                               </div>
                           )}
                       </td>
@@ -3108,9 +3108,9 @@ function App() {
             <ItemInPage />
           </ProtectedRoute>
         } />
-        <Route path="/rfc" element={
+        <Route path="/rfd" element={
           <ProtectedRoute requiredRole="user">
-            <RFCPage />
+            <RFDPage />
           </ProtectedRoute>
         } />
         <Route path="/item-out" element={

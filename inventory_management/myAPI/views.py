@@ -552,16 +552,16 @@ def get_item_by_passno(request, pass_no):
         return JsonResponse(error_response, status=500)
 
 @csrf_exempt
-def update_item_rfc(request, pass_no):
+def update_item_rfd(request, pass_no):
     if request.method != "PUT":
         error_response = {"error": "Only PUT allowed"}
-        log_api_response("update_item_rfc", request.method, {"passNo": pass_no}, error_response)
+        log_api_response("update_item_rfd", request.method, {"passNo": pass_no}, error_response)
         return JsonResponse(error_response, status=405)
     user, err = require_auth(request)
     if err:
         return err
     try:
-        print(f"=== ITEM RFC UPDATE DEBUG ===")
+        print(f"=== ITEM RFD UPDATE DEBUG ===")
         print(f"Pass Number: {pass_no}")
         print(f"User: {user.get('username')}")
         print(f"Request body: {request.body}")
@@ -575,7 +575,7 @@ def update_item_rfc(request, pass_no):
         doc = collection.find_one({"passNo": pass_no})
         if not doc:
             response = {"error": "Not found"}
-            log_api_response("update_item_rfc", request.method, {"passNo": pass_no}, response)
+            log_api_response("update_item_rfd", request.method, {"passNo": pass_no}, response)
             return JsonResponse(response, status=404)
         
         print(f"Found document: {doc.get('passNo')}")
@@ -596,22 +596,22 @@ def update_item_rfc(request, pass_no):
 
             # Create updated item
             updated_item = original_item.copy()
-            updated_item["itemRfc"] = bool(update_item.get("itemRfc", False))
+            updated_item["itemRfd"] = bool(update_item.get("itemRfd", False))
 
-            # Prevent RFC being unset for itemOut items
+            # Prevent RFD being unset for itemOut items
             if original_item.get("itemOut") is True:
-                updated_item["itemRfc"] = True
+                updated_item["itemRfd"] = True
 
-            # Handle dateRfc
-            if updated_item["itemRfc"]:
-                if update_item.get("dateRfc"):
-                    updated_item["dateRfc"] = update_item["dateRfc"]
-                elif not original_item.get("dateRfc"):
-                    updated_item["dateRfc"] = datetime.now(ZoneInfo("Asia/Kolkata")).date().isoformat()
-                    print(f"DEBUG: Auto-setting dateRfc for item {i} to {updated_item['dateRfc']}")
+            # Handle dateRfd
+            if updated_item["itemRfd"]:
+                if update_item.get("dateRfd"):
+                    updated_item["dateRfd"] = update_item["dateRfd"]
+                elif not original_item.get("dateRfd"):
+                    updated_item["dateRfd"] = datetime.now(ZoneInfo("Asia/Kolkata")).date().isoformat()
+                    print(f"DEBUG: Auto-setting dateRfd for item {i} to {updated_item['dateRfd']}")
             else:
-                updated_item["dateRfc"] = None
-                print(f"DEBUG: Clearing dateRfc for item {i} since itemRfc is False")
+                updated_item["dateRfd"] = None
+                print(f"DEBUG: Clearing dateRfd for item {i} since itemRfd is False")
 
             # Handle rectification details
             if "itemRectificationDetails" in update_item:
@@ -631,15 +631,15 @@ def update_item_rfc(request, pass_no):
         result = collection.update_one({"passNo": pass_no}, {"$set": {"items": new_items, "updatedAt": datetime.now(ZoneInfo("Asia/Kolkata")), "updatedBy": user.get("username")}})
         print(f"Update result: matched={result.matched_count}, modified={result.modified_count}")
 
-        response = {"message": "RFC statuses updated"}
-        log_api_response("update_item_rfc", request.method, {"passNo": pass_no, "updates_count": len(updates)}, response)
+        response = {"message": "RFD statuses updated"}
+        log_api_response("update_item_rfd", request.method, {"passNo": pass_no, "updates_count": len(updates)}, response)
         return JsonResponse(response)
     except Exception as e:
-        print(f"ERROR in update_item_rfc: {str(e)}")
+        print(f"ERROR in update_item_rfd: {str(e)}")
         print(f"Traceback: {traceback.format_exc()}")
         stack_trace = traceback.format_exc()
         error_response = {"error": str(e)}
-        log_api_response("update_item_rfc", request.method, {"passNo": pass_no}, {**error_response, "stack_trace": stack_trace})
+        log_api_response("update_item_rfd", request.method, {"passNo": pass_no}, {**error_response, "stack_trace": stack_trace})
         return JsonResponse(error_response, status=500)
 
 @csrf_exempt
@@ -689,7 +689,7 @@ def update_item_out(request, pass_no):
             updated_item = original_item.copy()
             updated_item["itemOut"] = bool(update_item.get("itemOut", False))
             
-            if not original_item.get("itemRfc"):
+            if not original_item.get("itemRfd"):
                 updated_item["itemOut"] = False
 
             if original_item.get("itemOut") is True:
@@ -765,8 +765,8 @@ def edit_record(request, pass_no):
                     item["itemIn"] = True  # Always true when item is entered
                     if "dateOut" not in item:
                         item["dateOut"] = None
-                    if "dateRfc" not in item:
-                        item["dateRfc"] = None
+                    if "dateRfd" not in item:
+                        item["dateRfd"] = None
                     if "itemRectificationDetails" not in item:
                         item["itemRectificationDetails"] = ""
                     if "itemFeedback1Details" not in item:
@@ -860,9 +860,9 @@ def _filter_serial(items, serial_substring=None, status=None):
             continue
 
         # 🔹 Status filter (optional)
-        if status == "In" and not (item.get("itemIn") and not item.get("itemOut") and not item.get("itemRfc")):
+        if status == "In" and not (item.get("itemIn") and not item.get("itemOut") and not item.get("itemRfd")):
             continue
-        if status == "RFC" and not (item.get("itemIn") and item.get("itemRfc") and not item.get("itemOut")):
+        if status == "RFD" and not (item.get("itemIn") and item.get("itemRfd") and not item.get("itemOut")):
             continue
         if status == "Out" and not (item.get("itemIn") and item.get("itemOut")):
             continue
@@ -880,10 +880,10 @@ def _filter_items(items, part_number=None, status=None):
             continue
 
         # Status filter
-        if status == "In" and not (item.get("itemIn") and not item.get("itemOut") and not item.get("itemRfc")):
+        if status == "In" and not (item.get("itemIn") and not item.get("itemOut") and not item.get("itemRfd")):
             continue
 
-        if status == "RFC" and not (item.get("itemIn") and item.get("itemRfc") and not item.get("itemOut")):
+        if status == "RFD" and not (item.get("itemIn") and item.get("itemRfd") and not item.get("itemOut")):
             continue
 
         if status == "Out" and not (item.get("itemIn") and item.get("itemOut")):
@@ -939,7 +939,7 @@ def search(request):
                 filtered_items = _filter_serial(filtered_items, serial_substring=search_value, status=status)
             elif search_type == "ItemPartNo" and search_value:
                 filtered_items = _filter_items(filtered_items, part_number=search_value, status=status)
-            elif status in ("In", "RFC", "Out"):
+            elif status in ("In", "RFD", "Out"):
                 filtered_items = _filter_items(filtered_items, status=status)
 
             for item in filtered_items:
@@ -985,7 +985,7 @@ def search_download(request):
             "Sl No.","Pass No", "Project Name", 
             "Customer Name", "Customer Unit Address", "Customer Location", "Customer Phone",
             "Equipment Type", "Item Name", "Part Number", "Serial Number", "Defect Details", 
-            "Status", "Date In", "Date RFC", "Date Out", "Item Rectification Details", "Feedback 1 details", "Feedback 2 details", "CreatedBy", "updatedBy"
+            "Status", "Date In", "Date RFD", "Date Out", "Item Rectification Details", "Feedback 1 details", "Feedback 2 details", "CreatedBy", "updatedBy"
         ])
         
         # Write data rows - one row per item
@@ -1005,7 +1005,7 @@ def search_download(request):
                 items = _filter_serial(items, serial_substring=search_value, status=status)
             elif search_type == "ItemPartNo" and search_value:
                 items = _filter_items(items, part_number = search_value, status=status)
-            elif status in ("In", "RFC", "Out"):
+            elif status in ("In", "RFD", "Out"):
                 items = _filter_items(items, status=status)
 
             # Filter items by part number if searching by part number
@@ -1016,7 +1016,7 @@ def search_download(request):
             for item in items:
                 # Determine status: OUT if both itemIn and itemOut are true, else IN
                 status = "OUT" if item.get("itemIn") and item.get("itemOut") else "IN"
-                status = "RFC" if item.get("itemIn") and item.get("itemRfc") and not item.get("itemOut") else status
+                status = "RFD" if item.get("itemIn") and item.get("itemRfd") and not item.get("itemOut") else status
                 
                 # Format phone number properly (remove scientific notation)
                 phone = customer.get("phone", "")
@@ -1024,14 +1024,14 @@ def search_download(request):
                     phone = str(phone)
                 
                 # Format date properly for Excel
-                date_rfc = item.get("dateRfc", "")
-                if date_rfc:
+                date_rfd = item.get("dateRfd", "")
+                if date_rfd:
                     # Ensure date is in YYYY-MM-DD format
                     try:
-                        if isinstance(date_rfc, str):
-                            date_rfc = date_rfc[:10]  # Take first 10 characters
+                        if isinstance(date_rfd, str):
+                            date_rfd = date_rfd[:10]  # Take first 10 characters
                     except:
-                        date_rfc = ""
+                        date_rfd = ""
 
                 date_out = item.get("dateOut", "")
                 if date_out:
@@ -1057,7 +1057,7 @@ def search_download(request):
                     item.get("defectDetails", ""),
                     status,
                     date_in,
-                    date_rfc,
+                    date_rfd,
                     date_out,
                     item.get("itemRectificationDetails", ""),
                     item.get("itemFeedback1Details", ""),
@@ -1401,9 +1401,16 @@ def spares_master_add(request):
 
         part_no = body.get("part_no", "").strip()
         item_name = body.get("item_name", "").strip()
-        bin_no = body.get("bin_no", "").strip()
+        no_of_bins = body.get("no_of_bins")
+        bin_nos = body.get("bin_nos", [])
         rack_no = body.get("rack_no", "").strip()
+        item_loc = body.get("item_loc", "").strip()
 
+        if not isinstance(bin_nos, list) or len(bin_nos) != int(no_of_bins):
+            return JsonResponse(
+                {"error": "bin_nos count must match no_of_bins"},
+                status=400
+            )
         # Required fields
         if not part_no or not item_name:
             return JsonResponse({"error": "part_no and item_name are required"}, status=400)
@@ -1419,8 +1426,10 @@ def spares_master_add(request):
         spares_coll.insert_one({
             "part_no": part_no,
             "item_name": item_name,
-            "bin_no": bin_no,
+            "no_of_bins": int(no_of_bins),
+            "bin_nos": bin_nos,
             "rack_no": rack_no,
+            "item_loc": item_loc,
             "created_by": user.get("username"),
             "created_at": datetime.now(ZoneInfo("Asia/Kolkata"))
         })
@@ -1470,8 +1479,10 @@ def spares_in(request):
 
             # Find item in master list
             item = spares_master.find_one({"part_no": part_no})
-            bin_no = spares_master.find_one({"part_no": part_no}).get("bin_no","")
+            no_of_bins = spares_master.find_one({"part_no": part_no}).get("no_of_bins",0)
+            bin_nos = spares_master.find_one({"part_no": part_no}).get("bin_nos",[])
             rack_no = spares_master.find_one({"part_no": part_no}).get("rack_no","")
+            item_loc = spares_master.find_one({"part_no": part_no}).get("item_loc","")
 
             if not item:
                 return JsonResponse({"error": "Item not found"}, status=404)
@@ -1498,8 +1509,10 @@ def spares_in(request):
                             "recieved_from": recieved_from,
                             "date": entry_date,
                             "remarks": remarks,
-                            "bin_no": bin_no,
-                            "rack_no": rack_no
+                            "no_of_bins": no_of_bins,
+                            "bin_nos": bin_nos,
+                            "rack_no": rack_no,
+                            "item_loc": item_loc
                         }
                     }
                 }
@@ -1514,8 +1527,10 @@ def spares_in(request):
                 "new_qty": new_qty,
                 "date": entry_date,
                 "remarks": remarks,
-                "bin_no": bin_no,
-                "rack_no": rack_no
+                "no_of_bins": no_of_bins,
+                "bin_nos": bin_nos,
+                "rack_no": rack_no,
+                "item_loc": item_loc
             })
 
             spares_audit.insert_one({
@@ -1527,8 +1542,10 @@ def spares_in(request):
                 "qty_after": new_qty,
                 "user": user,
                 "remarks": remarks,
-                "bin_no": bin_no,
+                "no_of_bins": no_of_bins,
+                "bin_nos": bin_nos,
                 "rack_no": rack_no,
+                "item_loc": item_loc
             })
 
             return JsonResponse({"status": "success", "new_qty": new_qty})
@@ -1554,8 +1571,10 @@ def spares_out(request):
 
             # Find item
             item = spares_master.find_one({"part_no": part_no})
-            bin_no = spares_master.find_one({"part_no": part_no}).get("bin_no","")
+            no_of_bins = spares_master.find_one({"part_no": part_no}).get("no_of_bins",0)
+            bin_nos = spares_master.find_one({"part_no": part_no}).get("bin_nos",[])
             rack_no = spares_master.find_one({"part_no": part_no}).get("rack_no","")
+            item_loc = spares_master.find_one({"part_no": part_no}).get("item_loc","")
 
             if not item:
                 return JsonResponse({"error": "Item not found"}, status=404)
@@ -1586,8 +1605,10 @@ def spares_out(request):
                             "handed_to": handing_over_to,
                             "date": entry_date,
                             "remarks": remarks,
-                            "bin_no": bin_no,
-                            "rack_no": rack_no
+                            "no_of_bins": no_of_bins,
+                            "bin_nos": bin_nos,
+                            "rack_no": rack_no,
+                            "item_loc": item_loc
                         }
                     }
                 }
@@ -1602,8 +1623,10 @@ def spares_out(request):
                 "new_qty": new_qty,
                 "date": entry_date,
                 "remarks": remarks,
-                "bin_no": bin_no,
-                "rack_no": rack_no
+                "no_of_bins": no_of_bins,
+                "bin_nos": bin_nos,
+                "rack_no": rack_no,
+                "item_loc": item_loc
             })
 
             spares_audit.insert_one({
@@ -1615,8 +1638,10 @@ def spares_out(request):
                 "user": user,
                 "remarks": remarks,
                 "handing_over_to": handing_over_to,
-                "bin_no": bin_no,
+                "no_of_bins": no_of_bins,
+                "bin_nos": bin_nos,
                 "rack_no": rack_no,
+                "item_loc": item_loc
             })
 
             return JsonResponse({"status": "success", "new_qty": new_qty})
@@ -1710,7 +1735,7 @@ def stock_check(request):
             writer = csv.writer(output)
 
             # Header
-            writer.writerow(["Sl No", "Part No","Item Name", "Qty"])
+            writer.writerow(["Sl No", "Part No","Item Name","Item Loc","Rack No","No of Bins","Bin No","Qty"])
 
             # Rows
             for idx, item in enumerate(items):
@@ -1718,6 +1743,10 @@ def stock_check(request):
                     idx + 1,
                     item.get("part_no", ""),
                     item.get("item_name", ""),
+                    item.get("item_loc", ""),
+                    item.get("rack_no", ""),
+                    item.get("no_of_bins", 0),
+                    item.get("bin_no", ""),
                     item.get("qty", 0)
                 ])
 
